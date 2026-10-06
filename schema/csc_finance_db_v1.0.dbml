@@ -1,0 +1,44 @@
+Project my_personal_finance {
+    database_type: 'PostgresSQL'
+    Note: 'This is my database schema for modeling my personal finance data'
+}
+
+enum InstrumentType { //The type of the money that was used
+  CHECK  //
+  DEBIT 
+  CCARD
+  UNKWN
+}
+
+Table categories {
+    id integer [pk,unique,not null,increment]
+    name varchar(100)
+    description varchar(255)
+}
+
+Table instruments {
+    id integer [pk, unique, not null, increment]
+    type InstrumentType
+    account_no integer    [not null]
+    interest_rate integer [null] //Only if this is a credit card
+    name varchar(100)
+    description varchar(255)
+}
+
+Table institutions {
+    id integer [pk, unique, not null, increment]
+    name varchar(100)
+    description varchar(255)
+}
+
+Table transactions {
+    id integer [pk, unique, not null, increment]
+    date date
+    amount decimal
+    product varchar(255)
+    description varchar(255)
+    
+    categ_id integer [ref: > categories.id]  //The category of the transaction
+    instr_id integer [ref: > instruments.id] //The financial instrument used
+    insti_id integer [ref: > institutions.id] //The financial institution involved in the transacion
+}
