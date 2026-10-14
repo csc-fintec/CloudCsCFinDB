@@ -2,43 +2,70 @@ Project my_personal_finance {
     database_type: 'PostgresSQL'
     Note: 'This is my database schema for modeling my personal finance data'
 }
+enum TransactionType { //The type of the money that was used
+  INCOME
+  EXPENSE
+  TRANSFER
+  UNCLASSIFIED
+}
 
-enum InstrumentType { //The type of the money that was used
-  CHECK  //
+
+enum MoneyType { //The type of the money that was used
+  CASH
+  CHECK 
   DEBIT 
   CCARD
   UNKWN
 }
 
+enum VendorType { //The type of the vendor
+  BANK
+  GOVERNMENT
+  MERCHANT
+  INSURANCE
+  GENERIC
+}
+
 Table categories {
     id integer [pk,unique,not null,increment]
-    name varchar(100)
+    name varchar(100) [not null, unique]
     description varchar(255)
 }
 
-Table instruments {
+
+//moneystruments 
+Table money_instruments {
     id integer [pk, unique, not null, increment]
-    type InstrumentType
-    account_no integer    [not null]
+    name varchar(100)
+    institution varchar(100) [not null]
+    account_no    integer [not null]
+
+    type MoneyType
+    description      varchar(255) [null]
+    full_description varchar(255) [null]
+
     interest_rate integer [null] //Only if this is a credit card
-    name varchar(100)
-    description varchar(255)
+    expiration_date date [null] //Only if this is a credit card 
 }
 
-Table institutions {
+Table vendors {
     id integer [pk, unique, not null, increment]
     name varchar(100)
+    type VendorType
+
     description varchar(255)
+    full_description varchar(255) [null]
 }
 
 Table transactions {
     id integer [pk, unique, not null, increment]
     date date
     amount decimal
+    type TransactionType
     product varchar(255)
     description varchar(255)
     
     categ_id integer [ref: > categories.id]  //The category of the transaction
-    instr_id integer [ref: > instruments.id] //The financial instrument used
-    insti_id integer [ref: > institutions.id] //The financial institution involved in the transacion
+    monsr_id integer [ref: > money_instruments.id] //The monetary instrument used
+    vendr_id integer [ref: > vendors.id] //The providor of the service involved in the transacion
 }
