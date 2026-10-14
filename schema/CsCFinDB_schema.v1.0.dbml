@@ -1,7 +1,8 @@
-Project my_personal_finance {
+Project CsCFinDB_schema {
     database_type: 'PostgresSQL'
     Note: 'This is my database schema for modeling my personal finance data'
 }
+
 enum TransactionType { //The type of the money that was used
   INCOME
   EXPENSE
@@ -9,13 +10,12 @@ enum TransactionType { //The type of the money that was used
   UNCLASSIFIED
 }
 
-
 enum MoneyType { //The type of the money that was used
   CASH
   CHECK 
   DEBIT 
   CCARD
-  UNKWN
+  UNKNOWN
 }
 
 enum VendorType { //The type of the vendor
@@ -33,12 +33,12 @@ Table categories {
 }
 
 
-//moneystruments 
 Table money_instruments {
     id integer [pk, unique, not null, increment]
+
     name varchar(100)
+    account_no  integer [not null]
     institution varchar(100) [not null]
-    account_no    integer [not null]
 
     type MoneyType
     description      varchar(255) [null]
@@ -60,10 +60,14 @@ Table vendors {
 Table transactions {
     id integer [pk, unique, not null, increment]
     date date
+
     amount decimal
-    type TransactionType
     product varchar(255)
+
+    type TransactionType
+
     description varchar(255)
+    full_description varchar(255)
     
     categ_id integer [ref: > categories.id]  //The category of the transaction
     monsr_id integer [ref: > money_instruments.id] //The monetary instrument used
