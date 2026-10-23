@@ -4,8 +4,10 @@ Project CsCFinDB_schema {
 }
 
 enum TransactionType { //The type of the money that was used
+  REFUND
   INCOME
   EXPENSE
+  PENALTY
   TRANSFER
   UNCLASSIFIED
 }
