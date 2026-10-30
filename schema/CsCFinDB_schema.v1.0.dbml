@@ -39,8 +39,10 @@ Table money_instruments {
     id integer [pk, unique, not null, increment]
 
     name varchar(100)
-    account_no  integer [not null]
-    institution varchar(100) [not null]
+
+    account_no   integer [not null]
+    account_desc varchar(100) [not null]
+    institution  varchar(100) [not null]
 
     type MoneyType
     description      varchar(255) [null]
@@ -61,6 +63,7 @@ Table vendors {
 
 Table transactions {
     id integer [pk, unique, not null, increment]
+
     date date
 
     amount decimal
@@ -72,6 +75,6 @@ Table transactions {
     full_description varchar(255)
     
     categ_id integer [ref: > categories.id]  //The category of the transaction
-    monsr_id integer [ref: > money_instruments.id] //The monetary instrument used
+    money_id integer [ref: > money_instruments.id] //The monetary instrument used
     vendr_id integer [ref: > vendors.id] //The providor of the service involved in the transacion
 }
