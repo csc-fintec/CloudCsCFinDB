@@ -49,16 +49,27 @@ Table money_instruments {
     full_description varchar(255) [null]
 
     interest_rate integer [null] //Only if this is a credit card
-    expiration_date date [null] //Only if this is a credit card 
+    expiration_date date [null]  ///Only if this is a credit card 
 }
 
 Table vendors {
     id integer [pk, unique, not null, increment]
     name varchar(100)
+
+    //The name of the business that is associated with this vendor. i
+    //This is not the same as the name of the vendor itself. 
+    //For example, the vendor might be "Amazon" but the business name might be "Amazon.com, Inc."
+    business_name varchar(100) [null]
+
     type VendorType
 
-    description varchar(255)
-    full_description varchar(255) [null]
+    //These are what the headers of the tiller spreadsheet are called.
+    //They are not the same as the column names in the vendors table
+    shrt_desc varchar(255) [null]
+    full_desc varchar(255) [null]
+
+
+    website varchar(255) [null]
 }
 
 Table transactions {
