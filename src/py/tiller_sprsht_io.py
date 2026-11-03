@@ -1,4 +1,6 @@
 import os.path
+import numpy as np
+import zlib
 
 """
   Read data from my tiller google sheet.
@@ -10,34 +12,54 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-import numpy as np
+
+# If modifying these scopes, delete the file token.json.
+GOOG_SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
 GOOG_CREDENTIALS    = None
 GOOG_SPREADSHEETS   = None
 GOOG_SHEETS_SERVICE = None
 
-# If modifying these scopes, delete the file token.json.
-GOOG_SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-
-# The ID and range of a Tiller spreadsheet.
+#The ID and range of a Tiller spreadsheet.
 TILLER_SPRSH_ID = "1aXzmExH2i6w6aapWDUwyWVk_mlWcY7KOO9HdsEG9lE0"
-#Tiller spreadsheet Name
-TILLER_SPRSH_NAME = "Transactions"
 
-TILLER_RNG_HDR = (TILLER_SPRSH_NAME + "!A1:P1")
-
-#TILLER_ = (TILLER_SPRSH_NAME + "!A1:P1")
-
+#Tiller Transactions Sheet
+TILLER_TRSC_NAME     = "Transactions"
+TILLER_TRSC_RNG_DATA = (TILLER_TRSC_NAME + "!B2:P500")
+TILLER_TRSC_RNG_HDR  = (TILLER_TRSC_NAME + "!B1:P1")
+TILLER_TRSC_HDR_IDX = {
+	 "Date": 0,
+	 "Description": 1,
+	 "Category": 2,
+	 "Amount": 3, 
+	 "Account": 4,
+	 "Account #": 5,
+	 "Institution": 6,
+	 "Month": 7,
+	 "Week": 8,
+	 "Transaction ID": 9,
+	 "Account ID": 10,
+	 "Check Number": 11,
+	 "Full Description": 12,
+	 "Date Added": 13,
+	 "Category Hint": 14
+}
 
 """
-  Initialize the google credentials for the tiller data reader.
+------------------------------------------------------------------------------
+  Initialize the google credentials and objects for the tiller data reader.
+------------------------------------------------------------------------------
 """
-def init_credentials():
+def init_googles():
   # The file token.json stores the user's access and refresh tokens, and is
   # created automatically when the authorization flow completes for the first
   # time.
   global GOOG_CREDENTIALS
+  global GOOG_SPREADSHEETS
+  global GOOG_SHEETS_SERVICE
+
   print("Initializing google credentials for tiller data reader...")
+
   if os.path.exists("./token.json"):
     GOOG_CREDENTIALS = Credentials.from_authorized_user_file("token.json", GOOG_SCOPES)
 
@@ -55,13 +77,22 @@ def init_credentials():
     with open("token.json", "w") as token:
       token.write(GOOG_CREDENTIALS.to_json())
 
+  # Build the service object for the Google Sheets API
+  GOOG_SHEETS_SERVICE = build("sheets", "v4", credentials=GOOG_CREDENTIALS)
+
+  # Call the Sheets API
+  GOOG_SPREADSHEETS = GOOG_SHEETS_SERVICE.spreadsheets()
+
   print("Initialized google credentials for tiller data reader.")
 
 """
-  Read the header of the tiller spreadsheet and return a list of column names.
+ ------------------------------------------------------------------------------
+  Read the header of the tiller transactions spreadsheet 
+  and return a list of column names.
+ ------------------------------------------------------------------------------
 """
-def read_sprsht_header():
-  print("Getting the header of the tiller spreadsheet...")
+def read_transactions_header():
+  print("Getting the header of the transactions spreadsheet...")
 
   if(GOOG_SPREADSHEETS is None):
     print("GOOG_SPREADSHEETS is None. Not Initialized..")
@@ -70,52 +101,89 @@ def read_sprsht_header():
 
      hdr_range = (
         GOOG_SPREADSHEETS.values()
-        .get(spreadsheetId=TILLER_SPRSH_ID, range=TILLER_RNG_HDR)
+        .get(spreadsheetId=TILLER_SPRSH_ID, range=TILLER_TRSC_RNG_HDR)
         .execute()
     )
 
      hdr_row = hdr_range.get("values", [])
      _,num_cols = np.array(hdr_row).shape
-
-     print(f"Num of columns of the tiller spreadsheet : {num_cols}")
+     print(f"Num of relenvant columns of the tiller spreadsheet : {num_cols}")
+     col_idx = 1
      for row in hdr_row:
       for hdr in row:
-        print(f"Header {hdr}") 
+        #print(f"{col_idx:02d} \"{hdr}\"") 
+        print(f"\t \"{hdr}\": {col_idx:02d},")
+        col_idx += 1
 
-     return hdr_range.get("values", [])
+     return hdr_row
 
   except HttpError as err:
     print(err)
 
+  return None
+
 """
-   Main function  
+ ------------------------------------------------------------------------------
+  Build the vendors list from the transactions spreadsheet
+ ------------------------------------------------------------------------------
 """
-def main():
+def build_vendors_list():
+  print("Getting the data from the transactions spreadsheet...")
 
-  global GOOG_SHEETS_SERVICE
-  global GOOG_SPREADSHEETS
+  #global TILLER_TRSC_HDR_IDX
 
-  init_credentials()
-
-  if(GOOG_CREDENTIALS is None):
-    print("GOOG_CREDENTIALS is None. Not Initialized..")
-    exit()
+  if(GOOG_SPREADSHEETS is None):
+    print("GOOG_SPREADSHEETS is None. Not Initialized..")
+    return
 
   try:
 
-    GOOG_SHEETS_SERVICE = build("sheets", "v4", credentials=GOOG_CREDENTIALS)
+     found_vendors = set()
 
-    # Call the Sheets API
-    GOOG_SPREADSHEETS = GOOG_SHEETS_SERVICE.spreadsheets()
+     data_range = (
+        GOOG_SPREADSHEETS.values()
+        .get(spreadsheetId=TILLER_SPRSH_ID, range=TILLER_TRSC_RNG_DATA)
+        .execute()
+    )
 
-    hdr_row = read_sprsht_header()
-    if(1): exit()
-  
+     data_rows = data_range.get("values", [])
+     num_rows,num_cols = np.array(data_rows).shape
+
+     print(f"dimensions of transactions data: {num_rows} {num_cols}")
+     print(f"Num of relenvant columns of the tiller spreadsheet : {num_cols}")
+
+     shrt_desc_idx = TILLER_TRSC_HDR_IDX["Description"]
+     full_desc_idx = TILLER_TRSC_HDR_IDX["Full Description"]
+
+     print(f"shrt_desc_idx : {shrt_desc_idx} full_desc_idx {full_desc_idx}")
+
+     for row in data_rows:
+      shrt_desc = row[shrt_desc_idx]
+      full_desc = row[full_desc_idx]
+      fast_hash = zlib.crc32((shrt_desc + full_desc).encode("utf-8"))
+      #print(f"hash : {fast_hash}\t{shrt_desc}\t{full_desc}")
+      if(fast_hash not in found_vendors):
+        found_vendors.add(fast_hash)
+        print(f"+++ {shrt_desc} {full_desc}")
+      else:
+          print(f"=== {shrt_desc} {full_desc}")
 
 
   except HttpError as err:
     print(err)
 
+"""
+  -------------------------------------------------------------------------
+   Main function  
+  -------------------------------------------------------------------------
+"""
+def main():
+
+  init_googles()
+
+  build_vendors_list()
+
+  #hdr_row = read_transactions_header()
 
 if __name__ == "__main__":
   main()

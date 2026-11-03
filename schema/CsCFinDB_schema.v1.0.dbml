@@ -34,29 +34,52 @@ Table categories {
     description varchar(255)
 }
 
+TablePartial address_base {
+    Address1 varchar(255) [not null]
+    Address2 varchar(255) [not null]
+    City varchar(100) [not null]
+    State varchar(100) [not null]
+    ZipCode varchar(20) [not null]
+}
 
+
+Table money_adresses {
+    id integer [pk,unique,not null,increment]
+    ~address_base
+}
+
+//Money instruments are the different ways that money can be used to pay for things.
 Table money_instruments {
     id integer [pk, unique, not null, increment]
 
     name varchar(100)
 
+    type MoneyType
+
     account_no   integer [not null]
     account_desc varchar(100) [not null]
     institution  varchar(100) [not null]
 
-    type MoneyType
     description      varchar(255) [null]
     full_description varchar(255) [null]
 
     interest_rate integer [null] //Only if this is a credit card
     expiration_date date [null]  ///Only if this is a credit card 
+
+    addr_id integer [ref: > money_adresses.id] 
+}
+
+//---------------------------------------------------------
+Table vendor_adresses {
+    id integer [pk,unique,not null,increment]
+    ~address_base
 }
 
 Table vendors {
     id integer [pk, unique, not null, increment]
     name varchar(100)
 
-    //The name of the business that is associated with this vendor. i
+    //The name of the business that is associated with this vendor.
     //This is not the same as the name of the vendor itself. 
     //For example, the vendor might be "Amazon" but the business name might be "Amazon.com, Inc."
     business_name varchar(100) [null]
@@ -68,9 +91,11 @@ Table vendors {
     shrt_desc varchar(255) [null]
     full_desc varchar(255) [null]
 
-
     website varchar(255) [null]
+
+    addr_id integer [ref: > vendor_adresses.id] //The providor of the service involved in the transaction 
 }
+//---------------------------------------------------------
 
 Table transactions {
     id integer [pk, unique, not null, increment]
