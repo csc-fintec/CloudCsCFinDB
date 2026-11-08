@@ -184,14 +184,34 @@ def build_vendors_list():
     print(err)
 
 """
+ ------------------------------------------------------------------------------
+   Read and execute the sql script file on the database.
+ ------------------------------------------------------------------------------
+"""
+
+def execute_sql_script(sql_fname):
+  print(f"Executing sql script {sql_fname} on the database")
+
+  with open(sql_fname, "r", encoding="utf-8") as sql_file:
+    sql_script = sql_file.read()
+    sql_statments = sql_script.split(";")
+    for sql_stmt in sql_statments:
+      sql_stmt = sql_stmt.strip()
+      if(len(sql_stmt) > 0):
+        print(f"Executing sql statement: {sql_stmt}")
+        # Execute the SQL statement on the database
+        # (Assuming you have a database connection established)
+        # db_connection.execute(sql_stmt)
+
+"""
   -------------------------------------------------------------------------
    Create command line options 
   -------------------------------------------------------------------------
 """
 def create_cmd_line_opts():
     p = optparse.OptionParser()
-    p.add_option("-s","--sql",
-                 dest="sql_script",
+    p.add_option("-s","--fsql",
+                 dest="sql_fname",
                  action="store",
                  help="Execute the sql script file on the database."
                 )
@@ -221,7 +241,7 @@ if __name__ == "__main__":
     cmd_opts  = create_cmd_line_opts()
     opts,args = cmd_opts.parse_args()
 
-    if(None == opts.sql_script) and (False == opts.bvendors):
+    if(None == opts.sql_fname) and (False == opts.bvendors):
       print("Error must specify action. Type -h for usage")
       sys.exit(1)
 
@@ -229,3 +249,6 @@ if __name__ == "__main__":
 
     if(opts.bvendors):
         build_vendors_list()
+
+    elif(opts.sql_fname):
+        execute_sql_script(opts.sql_fname)
