@@ -69,6 +69,7 @@ Table money_instruments {
     addr_id integer [ref: > money_adresses.id] 
 }
 
+
 //---------------------------------------------------------
 Table vendor_adresses {
     id integer [pk,unique,not null,increment]
