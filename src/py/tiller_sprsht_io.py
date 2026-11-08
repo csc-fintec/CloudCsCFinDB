@@ -1,10 +1,21 @@
+
+"""
+=========================================================
+      Read data from my tiller google sheet.
+=========================================================
+"""
+
 import os.path
 import numpy as np
 import zlib
 
-"""
-  Read data from my tiller google sheet.
-"""
+import io 
+import sys
+import string
+import shutil
+import hashlib
+import optparse
+
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -174,16 +185,47 @@ def build_vendors_list():
 
 """
   -------------------------------------------------------------------------
+   Create command line options 
+  -------------------------------------------------------------------------
+"""
+def create_cmd_line_opts():
+    p = optparse.OptionParser()
+    p.add_option("-s","--sql",
+                 dest="sql_script",
+                 action="store",
+                 help="Execute the sql script file on the database."
+                )
+    p.add_option("--bvendors",
+                 dest="bvendors",
+                 action="store_true",
+                 default=False,
+                 help="Build the vendors list from the tiller transactions spreadsheet."
+                )
+
+    #elif(None == opts.dbfile):
+    #    print "Error must specify input database file" 
+    #    sys.exit(1)
+
+    #p.add_option("--inp",action="store",dest="inpdir")
+    #p.add_option("-d",   action="store",dest="dbfile")
+    #p.add_option("--dbf",action="store",dest="dbfile")
+    return p
+
+"""
+  -------------------------------------------------------------------------
    Main function  
   -------------------------------------------------------------------------
 """
-def main():
-
-  init_googles()
-
-  build_vendors_list()
-
-  #hdr_row = read_transactions_header()
-
 if __name__ == "__main__":
-  main()
+
+    cmd_opts  = create_cmd_line_opts()
+    opts,args = cmd_opts.parse_args()
+
+    if(None == opts.sql_script) and (False == opts.bvendors):
+      print("Error must specify action. Type -h for usage")
+      sys.exit(1)
+
+    init_googles()
+
+    if(opts.bvendors):
+        build_vendors_list()
