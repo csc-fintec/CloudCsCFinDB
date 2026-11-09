@@ -22,10 +22,11 @@ enum MoneyType { //The type of the money that was used
 
 enum VendorType { //The type of the vendor
   BANK
-  GOVERNMENT
+  BROKER
   MERCHANT
   INSURANCE
-  GENERIC
+  GOVERNMENT
+  GENERAL
 }
 
 Table categories {

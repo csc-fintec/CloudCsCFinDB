@@ -8,37 +8,44 @@
 import os.path
 import numpy as np
 import zlib
-
 import io 
 import sys
 import string
-
-
 import shutil
 import hashlib
 import optparse
 
+#Google API imports
+import global_googles as gg
 from googleapiclient.errors import HttpError
 
-""""
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
+#SQLAlchemy imports
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL
+import urllib.parse
+
+#PostgreSQL database connection constants
+PG_DRIVER = "postgresql+psycopg3"
+#PG_DRIVER = "postgresql"
+PG_USER   = "legba"
+PG_PASS   = "Ediki@k0ng"
+#PG_PASS   = urllib.parse.quote_plus("Ediki@k0ng")
+PG_HOST   = "localhost"
+PG_PORT   = "5432"
+
+SQA_URL = URL.create(
+    drivername=PG_DRIVER,
+    username=PG_USER,
+    password=PG_PASS,
+    host=PG_HOST,
+    port=PG_PORT,
+    database="cscfindb"
+)
 
 
-# If modifying these scopes, delete the file token.json.
-GOOG_SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-
-GOOG_CREDENTIALS    = None
-GOOG_SPREADSHEETS   = None
-GOOG_SHEETS_SERVICE = None
-"""
-
-import global_googles as gg
-
-#The ID CSC.Tiller.Citibank spreadsheet.
-TILLER_SPRSH_ID = "1aXzmExH2i6w6aapWDUwyWVk_mlWcY7KOO9HdsEG9lE0"
+#Tiller spreadsheet data reader constants
+#The ID of CSC.Tiller.Citibank spreadsheet.
+TILLER_SPRSH_CITIBANK_ID = "1aXzmExH2i6w6aapWDUwyWVk_mlWcY7KOO9HdsEG9lE0"
 
 #Tiller Transactions Sheet specs
 TILLER_TRSC_NAME     = "Transactions"
@@ -62,6 +69,7 @@ TILLER_TRSC_HDR_IDX = {
 	 "Category Hint": 14
 }
 
+# =========================================================
 
 """
  ------------------------------------------------------------------------------
@@ -79,7 +87,7 @@ def read_transactions_header():
 
      hdr_range = (
         gg.GOOG_SPREADSHEETS.values()
-        .get(spreadsheetId=TILLER_SPRSH_ID, range=TILLER_TRSC_RNG_HDR)
+        .get(spreadsheetId=TILLER_SPRSH_CITBANK_ID, range=TILLER_TRSC_RNG_HDR)
         .execute()
     )
 
@@ -108,8 +116,6 @@ def read_transactions_header():
 def build_vendors_list():
   print("Getting the data from the transactions spreadsheet...")
 
-  #global TILLER_TRSC_HDR_IDX
-
   if(gg.GOOG_SPREADSHEETS is None):
     print("GOOG_SPREADSHEETS is None. Not Initialized..")
     return
@@ -120,7 +126,7 @@ def build_vendors_list():
 
      data_range = (
         gg.GOOG_SPREADSHEETS.values()
-        .get(spreadsheetId=TILLER_SPRSH_ID, range=TILLER_TRSC_RNG_DATA)
+        .get(spreadsheetId=TILLER_SPRSH_CITIBANK_ID, range=TILLER_TRSC_RNG_DATA)
         .execute()
     )
 
@@ -150,24 +156,38 @@ def build_vendors_list():
     print(err)
 
 """
- ------------------------------------------------------------------------------
+------------------------------------------------------------------------------
    Read and execute the sql script file on the database.
- ------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 """
-
 def execute_sql_script(sql_fname):
-  print(f"Executing sql script {sql_fname} on the database")
+  print(f"Executing sql script {sql_fname} on the database....\n")
 
+  #print(f"SQA_URL: {SQA_URL}")
+  #if(1):sys.exit(1)
+
+  #Create a database engine using SQLAlchemy
+  print(f"Creating database engine {SQA_URL}...")
+  create_engine(SQA_URL)
+  if(1):sys.exit(1)
+
+  #open the SQL script file and read its contents  
   with open(sql_fname, "r", encoding="utf-8") as sql_file:
     sql_script = sql_file.read()
     sql_statments = sql_script.split(";")
+
+  with create_engine(SQA_URL).connect() as db_conn:
     for sql_stmt in sql_statments:
       sql_stmt = sql_stmt.strip()
       if(len(sql_stmt) > 0):
-        print(f"Executing sql statement: {sql_stmt}")
+        print(f"Executing sql statement: {sql_stmt}\n")
         # Execute the SQL statement on the database
         # (Assuming you have a database connection established)
-        # db_connection.execute(sql_stmt)
+        db_conn.execute(text(sql_stmt))
+        db_conn.commit()  # Commit the changes if it's a modifying statement
+        print(f"\nStatement executed successfully.\n")
+
+  print(f"Executed sql script {sql_fname}.")
 
 """
   -------------------------------------------------------------------------
