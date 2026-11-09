@@ -25,7 +25,7 @@ from sqlalchemy.engine import URL
 import urllib.parse
 
 #PostgreSQL database connection constants
-PG_DRIVER = "postgresql+psycopg3"
+PG_DRIVER = "postgresql+psycopg"
 #PG_DRIVER = "postgresql"
 PG_USER   = "legba"
 PG_PASS   = "Ediki@k0ng"
@@ -87,7 +87,7 @@ def read_transactions_header():
 
      hdr_range = (
         gg.GOOG_SPREADSHEETS.values()
-        .get(spreadsheetId=TILLER_SPRSH_CITBANK_ID, range=TILLER_TRSC_RNG_HDR)
+        .get(spreadsheetId=TILLER_SPRSH_CITIBANK_ID, range=TILLER_TRSC_RNG_HDR)
         .execute()
     )
 
@@ -163,31 +163,28 @@ def build_vendors_list():
 def execute_sql_script(sql_fname):
   print(f"Executing sql script {sql_fname} on the database....\n")
 
-  #print(f"SQA_URL: {SQA_URL}")
-  #if(1):sys.exit(1)
-
   #Create a database engine using SQLAlchemy
   print(f"Creating database engine {SQA_URL}...")
-  create_engine(SQA_URL)
-  if(1):sys.exit(1)
+  sqa_engine = create_engine(SQA_URL)
+  print(f"Created database engine.\n\n")
 
   #open the SQL script file and read its contents  
   with open(sql_fname, "r", encoding="utf-8") as sql_file:
     sql_script = sql_file.read()
     sql_statments = sql_script.split(";")
-
-  with create_engine(SQA_URL).connect() as db_conn:
+  with sqa_engine.connect() as sqa_conn:
+    print(f"Executing sql statments on engine.\n")
     for sql_stmt in sql_statments:
       sql_stmt = sql_stmt.strip()
-      if(len(sql_stmt) > 0):
+      #if(len(sql_stmt) > 0) and (not sql_stmt.startswith("--")):
+      if(len(sql_stmt) > 0): #and (not sql_stmt.startswith("--")):
         print(f"Executing sql statement: {sql_stmt}\n")
         # Execute the SQL statement on the database
-        # (Assuming you have a database connection established)
-        db_conn.execute(text(sql_stmt))
-        db_conn.commit()  # Commit the changes if it's a modifying statement
+        sqa_conn.execute(text(sql_stmt))
+        sqa_conn.commit()  # Commit the changes if it's a modifying statement
         print(f"\nStatement executed successfully.\n")
 
-  print(f"Executed sql script {sql_fname}.")
+  print(f"\nExecuted sql script.")
 
 """
   -------------------------------------------------------------------------

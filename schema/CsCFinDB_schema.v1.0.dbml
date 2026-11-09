@@ -3,7 +3,7 @@ Project CsCFinDB_schema {
     Note: 'This is my database schema for modeling my personal finance data'
 }
 
-enum TransactionType { //The type of the money that was used
+enum TransactTypes { //The type of the transaction that was performed
   REFUND
   INCOME
   EXPENSE
@@ -12,7 +12,7 @@ enum TransactionType { //The type of the money that was used
   UNCLASSIFIED
 }
 
-enum MoneyType { //The type of the money that was used
+enum FinancialTypes { //The type of the money that was used
   CASH
   CHECK 
   DEBIT 
@@ -20,7 +20,7 @@ enum MoneyType { //The type of the money that was used
   UNKNOWN
 }
 
-enum VendorType { //The type of the vendor
+enum VendorTypes { //The type of the vendor
   BANK
   BROKER
   MERCHANT
@@ -44,35 +44,37 @@ TablePartial address_base {
 }
 
 
-Table money_adresses {
+Table financial_addresses {
     id integer [pk,unique,not null,increment]
     ~address_base
 }
 
-//Money instruments are the different ways that money can be used to pay for things.
-Table money_instruments {
+//Financial instruments are the different ways that money can be used to pay for things.
+Table financials {
     id integer [pk, unique, not null, increment]
 
     name varchar(100)
 
-    type MoneyType
+    type FinancialTypes
 
-    account_no   integer [not null]
-    account_desc varchar(100) [not null]
+    routing_numb integer      [null]  //If this is a bank account
+    account_desc varchar(100) [null]
+    account_numb integer      [not null]
+    accnumb_abrv varchar(100) [null]
     institution  varchar(100) [not null]
 
-    description      varchar(255) [null]
-    full_description varchar(255) [null]
+    //#description      varchar(255) [null]
+    //#full_description varchar(255) [null]
 
     interest_rate integer [null] //Only if this is a credit card
-    expiration_date date [null]  ///Only if this is a credit card 
+    expiration_date date  [null]  ///Only if this is a credit card 
 
-    addr_id integer [ref: > money_adresses.id] 
+    addr_id integer [ref: > financial_addresses.id] 
 }
 
 
 //---------------------------------------------------------
-Table vendor_adresses {
+Table vendor_addresses {
     id integer [pk,unique,not null,increment]
     ~address_base
 }
@@ -86,7 +88,7 @@ Table vendors {
     //For example, the vendor might be "Amazon" but the business name might be "Amazon.com, Inc."
     business_name varchar(100) [null]
 
-    type VendorType
+    type VendorTypes
 
     //These are what the headers of the tiller spreadsheet are called.
     //They are not the same as the column names in the vendors table
@@ -95,7 +97,7 @@ Table vendors {
 
     website varchar(255) [null]
 
-    addr_id integer [ref: > vendor_adresses.id] //The providor of the service involved in the transaction 
+    addr_id integer [ref: > vendor_addresses.id] //The providor of the service involved in the transaction 
 }
 //---------------------------------------------------------
 
@@ -107,12 +109,12 @@ Table transactions {
     amount decimal
     product varchar(255)
 
-    type TransactionType
+    type TransactTypes
 
     description varchar(255)
     full_description varchar(255)
     
     categ_id integer [ref: > categories.id]  //The category of the transaction
-    money_id integer [ref: > money_instruments.id] //The monetary instrument used
+    money_id integer [ref: > financials.id] //The monetary instrument used
     vendr_id integer [ref: > vendors.id] //The providor of the service involved in the transacion
 }
