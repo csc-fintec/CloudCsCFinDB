@@ -14,6 +14,8 @@ import shutil
 import hashlib
 import optparse
 
+from dotenv import load_dotenv
+
 #Google API imports
 import global_googles as gg
 from googleapiclient.errors import HttpError
@@ -149,7 +151,7 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
     existing_vendors.update([sqa_row[0] for sqa_row in sqa_result])
 
   print(f"Existing Vendors: {len(existing_vendors)}")
-  #if(1): sys.exit()
+
   try:
 
      data_range = (
@@ -212,20 +214,12 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
      if(len(vendors_many_list ) > 0) :
       vendors_insert = SQA.insert(vendors_table)
       venaddr_insert = SQA.insert(venaddr_table)
-      with sqa_engine.connect() as sqa_conn:
+      with sqa_engine.begin() as sqa_conn:
         sqa_conn.execute(venaddr_insert, venaddr_many_list) 
         sqa_conn.execute(vendors_insert, vendors_many_list)
       print(f"\nInserted {len(venaddr_many_list)} new vendor addresses into the database.\n")
      else:
       print(f"\nNo new vendors nothing to insert addresses into the database.\n")
-
-
-     #print(f"Querying the vendors table...")
-     #with sqa_engine.connect() as sqa_conn:
-     # result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
-     # print(f"Queried {len(result)} rows from the vendors table.")
-     # for row in result:
-     #   print(row)
 
   except HttpError as err:
     print(err)
@@ -233,36 +227,60 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
   print(f"Found {len(existing_vendors)} unique vendors in the transactions spreadsheet.")
   print("Done building the vendors list from the transactions spreadsheet.")
 
-def query_vendors_contents():
-  print("Begin querying the vendors vendors table...")
+"""
+ ------------------------------------------------------------------------
+  query the vendors list from vendors database 
+ ------------------------------------------------------------------------
+"""
+def query_table_contents(table_name = "vendors"):
+  print(f"Begin querying the {table_name} table...")
+
+  print(f"  Creating database engine {SQA_URL}...")
+  sqa_engine = create_engine(SQA_URL)
+  print(f"  Created database engine.\n")
+
+  db_table = SQA.Table(table_name, SQA.MetaData(),autoload_with=sqa_engine)
+  db_table_hdrs = db_table.columns.keys()
+
+  print(f"{table_name} columns:\n{db_table_hdrs}")
+
+  with sqa_engine.connect() as sqa_conn:
+    #Query the vendors table
+    print(f"Querying the {table_name} table...")
+    sqa_result = sqa_conn.execute(SQA.select(db_table)).fetchall()
+    print(f"Queried {len(sqa_result)} rows from the {table_name} table.")
+
+    for sqa_row in sqa_result:
+      print(sqa_row)
+
+"""
+ ------------------------------------------------------------------------
+  Update vendors addresses from googlemaps
+ ------------------------------------------------------------------------
+"""
+def add_gmap_addresses():
+  print(f"Begin building the googlemap addresses...")
 
   print(f"  Creating database engine {SQA_URL}...")
   sqa_engine = create_engine(SQA_URL)
   print(f"  Created database engine.\n")
 
   vendors_table = SQA.Table("vendors", SQA.MetaData(),autoload_with=sqa_engine)
-  #venaddr_table = SQA.Table("vendor_addresses", SQA.MetaData(),autoload_with=sqa_engine)
-  vendors_columns = vendors_table.columns.keys()
-  #venaddr_columns = venaddr_table.columns.keys()
+  vendors_hdrs  = vendors_table.columns.keys()
 
-  print(f"Vendors columns: {vendors_columns}")
- # print(f"Vendor Addresses columns: {venaddr_columns}")
+  idx           = 0
+  shrt_desc_idx = 0
+  full_desc_idx = 0
 
+  for idx,hdr in enumerate(vendors_hdrs):
+    print(f"{idx}\t{hdr}")
+    match hdr:
+      case "shrt_desc": shrt_desc_idx = idx
+      case "full_desc": full_desc_idx = idx
+
+  #print(f"shrt_desc_idx : {shrt_desc_idx} full_desc_idx : {full_desc_idx}")
   with sqa_engine.connect() as sqa_conn:
-    #Query the vendors table
-    print(f"Querying the vendors table...")
     sqa_result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
-    print(f"Queried {len(sqa_result)} rows from the vendors table.")
-    #for sqa_row in sqa_result:
-    #  print(sqa_row)
-
-    table_ids = [sqa_row[0] for sqa_row in sqa_result]
-
-    print(f"{len(table_ids)} rows from the vendors table.")
-    print(f"Table ids {table_ids}")
-
-
-  print("End   querying the vendors vendors table.")
 
 """
 ------------------------------------------------------------------------------
@@ -313,17 +331,22 @@ def create_cmd_line_opts():
                  action="store",
                  help="The output file for the results."
                 )
+    p.add_option("-q","--query_table",
+                 dest="qt_name",
+                 action="store",
+                 help="Query a database table contents."
+                )
     p.add_option("-b","--build_vendors",
                  dest="bvendors",
                  action="store_true",
                  default=False,
                  help="Build the vendors list from the given spreadsheet."
                 )
-    p.add_option("-q","--query_vendors",
-                 dest="qvendors",
+    p.add_option("-g","--add_gmap_addresses",
+                 dest="gmap_addrs",
                  action="store_true",
                  default=False,
-                 help="Query the vendors table contents."
+                 help="Add addresses from the google maps addresses"
                 )
     return p
 
@@ -349,8 +372,9 @@ if __name__ == "__main__":
         print(f"Spreadsheet name : {spsht_name}")
 
     if(None == opts.run_sql_fname) and \
-      (False == opts.bvendors)     and \
-      (False == opts.qvendors):
+      (None == opts.qt_name)       and \
+      (False == opts.gmap_addrs)  and \
+      (False == opts.bvendors): 
       print("Error must specify action. Type -h for usage")
       sys.exit(1)
 
@@ -359,8 +383,11 @@ if __name__ == "__main__":
     if(opts.bvendors):
         build_vendors_list(TILLER_SPRSH_IDXS[spsht_name])
 
-    if(opts.qvendors):
-        query_vendors_contents()
+    if(opts.gmap_addrs):
+        add_gmap_addresses()
+
+    if(opts.qt_name):
+        query_table_contents(opts.qt_name)
 
     elif(opts.run_sql_fname):
         execute_sql_script(opts.run_sql_fname)
