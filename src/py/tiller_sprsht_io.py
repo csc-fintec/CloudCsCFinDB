@@ -18,6 +18,8 @@ from dotenv import load_dotenv
 
 #Google API imports
 import global_googles as gg
+#import requests
+import asyncio
 from googleapiclient.errors import HttpError
 
 #SQLAlchemy imports
@@ -153,7 +155,6 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
   print(f"Existing Vendors: {len(existing_vendors)}")
 
   try:
-
      data_range = (
         gg.GOOG_SPREADSHEETS.values()
         .get(spreadsheetId=use_spreadsheet_id, range=TILLER_TRSC_RNG_DATA)
@@ -249,7 +250,6 @@ def query_table_contents(table_name = "vendors"):
     print(f"Querying the {table_name} table...")
     sqa_result = sqa_conn.execute(SQA.select(db_table)).fetchall()
     print(f"Queried {len(sqa_result)} rows from the {table_name} table.")
-
     for sqa_row in sqa_result:
       print(sqa_row)
 
@@ -273,14 +273,24 @@ def add_gmap_addresses():
   full_desc_idx = 0
 
   for idx,hdr in enumerate(vendors_hdrs):
-    print(f"{idx}\t{hdr}")
+    #print(f"{idx}\t{hdr}")
     match hdr:
       case "shrt_desc": shrt_desc_idx = idx
       case "full_desc": full_desc_idx = idx
 
-  #print(f"shrt_desc_idx : {shrt_desc_idx} full_desc_idx : {full_desc_idx}")
+  print(f"shrt_desc_idx : {shrt_desc_idx} full_desc_idx : {full_desc_idx}")
   with sqa_engine.connect() as sqa_conn:
+    bus_req_payload = {
+      "textQuery": ""
+    }
+
     sqa_result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
+    #print(f"Queried {len(sqa_result)} rows from the vendors table.")
+    for idx,sqa_row in enumerate(sqa_result):
+      print(f"{idx}\t{sqa_row[shrt_desc_idx]}")
+      bus_name_abrv = sqa_row[shrt_desc_idx]
+      asyncio.run(gg.goog_get_business_address(bus_name_abrv))
+      if(1):sys.exit(0)
 
 """
 ------------------------------------------------------------------------------
@@ -378,8 +388,8 @@ if __name__ == "__main__":
       print("Error must specify action. Type -h for usage")
       sys.exit(1)
 
-    gg.init_googles()
-
+    gg.goog_init()
+   
     if(opts.bvendors):
         build_vendors_list(TILLER_SPRSH_IDXS[spsht_name])
 
