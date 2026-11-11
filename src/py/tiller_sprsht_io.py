@@ -1,4 +1,3 @@
-
 """
 =========================================================
       Read data from my tiller google sheet.
@@ -21,6 +20,7 @@ from googleapiclient.errors import HttpError
 
 #SQLAlchemy imports
 import sqlalchemy as SQA
+from sqlalchemy import insert as sqa_insert
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 import urllib.parse
@@ -40,7 +40,6 @@ SQA_URL = URL.create(
     port=PG_PORT,
     database="cscfindb"
 )
-
 
 #Tiller spreadsheet data reader constants
 #The ID of CSC.Tiller.Citibank spreadsheet.
@@ -79,10 +78,10 @@ TILLER_TRSC_HDR_IDXS =  {
 # =========================================================
 
 """
- ------------------------------------------------------------------------------
+ --------------------------------------------------------------------
   Read the header of the tiller transactions spreadsheet 
   and return a list of column names.
- ------------------------------------------------------------------------------
+ --------------------------------------------------------------------
 """
 def read_transactions_header():
   print("Getting the header of the transactions spreadsheet...")
@@ -116,9 +115,9 @@ def read_transactions_header():
   return None
 
 """
- ------------------------------------------------------------------------------
+ ------------------------------------------------------------------------
   Build the vendors list from the transactions spreadsheet
- ------------------------------------------------------------------------------
+ ------------------------------------------------------------------------
 """
 def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
   print("Building the vendors list from the transactions spreadsheet...")
@@ -128,16 +127,13 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
     return
 
   #Create a database engine using SQLAlchemy
- # """
   print(f"  Creating database engine {SQA_URL}...")
   sqa_engine = create_engine(SQA_URL)
   print(f"  Created database engine.\n")
 
-  #with sqa_engine.connect() as sqa_conn:
-  #  print(f"  Connected to database engine.")
-
-  vendors_table  = SQA.Table("vendors", SQA.MetaData(),autoload_with=sqa_engine)
+  vendors_table = SQA.Table("vendors", SQA.MetaData(),autoload_with=sqa_engine)
   venaddr_table = SQA.Table("vendor_addresses", SQA.MetaData(),autoload_with=sqa_engine)
+
   vendors_columns = vendors_table.columns.keys()
   venaddr_columns = venaddr_table.columns.keys()
 
@@ -146,8 +142,8 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
  # """
 
   found_new_vendors = set()
-  try:
 
+  try:
 
      data_range = (
         gg.GOOG_SPREADSHEETS.values()
@@ -185,7 +181,6 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
             vendaddr_row[col] = ""
        
         venaddr_many_list.append(vendaddr_row)
-        #print(f"\nvendaddr_many_list {venaddr_many_list}")
 
         vendors_row   = {}
         for col in vendors_columns:
@@ -215,21 +210,59 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
       else:
           print(f"=== {shrt_desc} {full_desc}")
       
-      
-     print(f"\nInserting {len(venaddr_many_list)} new vendor addresses into the database...")
+     vendors_insert = SQA.insert(vendors_table)
+     venaddr_insert = SQA.insert(venaddr_table)
+
      with sqa_engine.connect() as sqa_conn:
-      sqa_conn.execute(SQA.insert(venaddr_table), venaddr_many_list)
-      sqa_conn.execute(SQA.insert(vendors_table), vendors_many_list)
-      #sqa_conn.execute(venaddr_table.insert(), venaddr_many_list)
-      #sqa_conn.execute(vendors_table.insert(), vendors_many_list)
+      sqa_conn.execute(venaddr_insert, venaddr_many_list) 
+      sqa_conn.execute(vendors_insert, vendors_many_list)
 
      print(f"\nInserted {len(venaddr_many_list)} new vendor addresses into the database.\n")
+
+     #print(f"Querying the vendors table...")
+     #with sqa_engine.connect() as sqa_conn:
+     # result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
+     # print(f"Queried {len(result)} rows from the vendors table.")
+     # for row in result:
+     #   print(row)
 
   except HttpError as err:
     print(err)
 
   print(f"Found {len(found_new_vendors)} unique vendors in the transactions spreadsheet.")
   print("Done building the vendors list from the transactions spreadsheet.")
+
+def query_vendors_contents():
+  print("Begin querying the vendors vendors table...")
+
+  print(f"  Creating database engine {SQA_URL}...")
+  sqa_engine = create_engine(SQA_URL)
+  print(f"  Created database engine.\n")
+
+  vendors_table = SQA.Table("vendors", SQA.MetaData(),autoload_with=sqa_engine)
+  venaddr_table = SQA.Table("vendor_addresses", SQA.MetaData(),autoload_with=sqa_engine)
+  vendors_columns = vendors_table.columns.keys()
+  venaddr_columns = venaddr_table.columns.keys()
+
+  print(f"Vendors columns: {vendors_columns}")
+  print(f"Vendor Addresses columns: {venaddr_columns}")
+
+  with sqa_engine.connect() as sqa_conn:
+    #Query the vendors table
+    print(f"Querying the vendors table...")
+    sqa_result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
+    print(f"Queried {len(sqa_result)} rows from the vendors table.")
+    for sqa_row in sqa_result:
+      print(sqa_row)
+
+    #Query the vendor_addresses table
+    #print(f"\nQuerying the vendor_addresses table...")
+    #result = sqa_conn.execute(SQA.select(venaddr_table)).fetchall()
+    #print(f"Queried {len(result)} rows from the vendor_addresses table.")
+    #for row in result:
+    #  print(row)
+
+  print("End   querying the vendors vendors table.")
 
 """
 ------------------------------------------------------------------------------
@@ -286,6 +319,12 @@ def create_cmd_line_opts():
                  default=False,
                  help="Build the vendors list from the given spreadsheet."
                 )
+    p.add_option("-q","--query_vendors",
+                 dest="qvendors",
+                 action="store_true",
+                 default=False,
+                 help="Query the vendors table contents."
+                )
     return p
 
 """
@@ -309,7 +348,9 @@ if __name__ == "__main__":
       else:
         print(f"Spreadsheet name : {spsht_name}")
 
-    if(None == opts.run_sql_fname) and (False == opts.bvendors):
+    if(None == opts.run_sql_fname) and \
+      (False == opts.bvendors)     and \
+      (False == opts.qvendors):
       print("Error must specify action. Type -h for usage")
       sys.exit(1)
 
@@ -317,6 +358,9 @@ if __name__ == "__main__":
 
     if(opts.bvendors):
         build_vendors_list(TILLER_SPRSH_IDXS[spsht_name])
+
+    if(opts.qvendors):
+        query_vendors_contents()
 
     elif(opts.run_sql_fname):
         execute_sql_script(opts.run_sql_fname)
