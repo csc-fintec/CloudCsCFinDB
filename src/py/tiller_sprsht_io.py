@@ -20,16 +20,15 @@ import global_googles as gg
 from googleapiclient.errors import HttpError
 
 #SQLAlchemy imports
+import sqlalchemy as SQA
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 import urllib.parse
 
 #PostgreSQL database connection constants
 PG_DRIVER = "postgresql+psycopg"
-#PG_DRIVER = "postgresql"
 PG_USER   = "legba"
 PG_PASS   = "Ediki@k0ng"
-#PG_PASS   = urllib.parse.quote_plus("Ediki@k0ng")
 PG_HOST   = "localhost"
 PG_PORT   = "5432"
 
@@ -45,13 +44,21 @@ SQA_URL = URL.create(
 
 #Tiller spreadsheet data reader constants
 #The ID of CSC.Tiller.Citibank spreadsheet.
-TILLER_SPRSH_CITIBANK_ID = "1aXzmExH2i6w6aapWDUwyWVk_mlWcY7KOO9HdsEG9lE0"
+TILLER_SPRSH_ID_BANKS    = "1qQKOMJGwyh2Eh9PTCp5UGFWvWpBasuB5xSkndKIKgRU"
+TILLER_SPRSH_ID_CCARDS   = "1GlNEhYv0Mvxd3MaVNn70DbA99pYJTkSWMOPNskZmKFc"
+TILLER_SPRSH_ID_CITIBANK = "1aXzmExH2i6w6aapWDUwyWVk_mlWcY7KOO9HdsEG9lE0"
+
+TILLER_SPRSH_IDXS = {
+  "BANKS":    TILLER_SPRSH_ID_BANKS,
+  "CCARDS":   TILLER_SPRSH_ID_CCARDS,
+  "CITIBANK": TILLER_SPRSH_ID_CITIBANK
+}
 
 #Tiller Transactions Sheet specs
 TILLER_TRSC_NAME     = "Transactions"
 TILLER_TRSC_RNG_DATA = (TILLER_TRSC_NAME + "!B2:P500")
 TILLER_TRSC_RNG_HDR  = (TILLER_TRSC_NAME + "!B1:P1")
-TILLER_TRSC_HDR_IDX = {
+TILLER_TRSC_HDR_IDXS =  {
 	 "Date": 0,
 	 "Description": 1,
 	 "Category": 2,
@@ -87,7 +94,7 @@ def read_transactions_header():
 
      hdr_range = (
         gg.GOOG_SPREADSHEETS.values()
-        .get(spreadsheetId=TILLER_SPRSH_CITIBANK_ID, range=TILLER_TRSC_RNG_HDR)
+        .get(spreadsheetId=TILLER_SPRSH_ID_CITIBANK, range=TILLER_TRSC_RNG_HDR)
         .execute()
     )
 
@@ -113,20 +120,38 @@ def read_transactions_header():
   Build the vendors list from the transactions spreadsheet
  ------------------------------------------------------------------------------
 """
-def build_vendors_list():
-  print("Getting the data from the transactions spreadsheet...")
+def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
+  print("Building the vendors list from the transactions spreadsheet...")
 
   if(gg.GOOG_SPREADSHEETS is None):
-    print("GOOG_SPREADSHEETS is None. Not Initialized..")
+    print("Error: GOOG_SPREADSHEETS is None. Not Initialized..")
     return
 
+  #Create a database engine using SQLAlchemy
+ # """
+  print(f"  Creating database engine {SQA_URL}...")
+  sqa_engine = create_engine(SQA_URL)
+  print(f"  Created database engine.\n")
+
+  #with sqa_engine.connect() as sqa_conn:
+  #  print(f"  Connected to database engine.")
+
+  vendors_table  = SQA.Table("vendors", SQA.MetaData(),autoload_with=sqa_engine)
+  venaddr_table = SQA.Table("vendor_addresses", SQA.MetaData(),autoload_with=sqa_engine)
+  vendors_columns = vendors_table.columns.keys()
+  venaddr_columns = venaddr_table.columns.keys()
+
+  print(f"Vendors columns: {vendors_columns}")
+  print(f"Vendor Addresses columns: {venaddr_columns}")
+ # """
+
+  found_new_vendors = set()
   try:
 
-     found_vendors = set()
 
      data_range = (
         gg.GOOG_SPREADSHEETS.values()
-        .get(spreadsheetId=TILLER_SPRSH_CITIBANK_ID, range=TILLER_TRSC_RNG_DATA)
+        .get(spreadsheetId=use_spreadsheet_id, range=TILLER_TRSC_RNG_DATA)
         .execute()
     )
 
@@ -134,26 +159,77 @@ def build_vendors_list():
      num_rows,num_cols = np.array(data_rows).shape
 
      print(f"dimensions of transactions data: {num_rows} {num_cols}")
-     print(f"Num of relenvant columns of the tiller spreadsheet : {num_cols}")
+     print(f"Num of relevent columns of the tiller spreadsheet : {num_cols}")
 
-     shrt_desc_idx = TILLER_TRSC_HDR_IDX["Description"]
-     full_desc_idx = TILLER_TRSC_HDR_IDX["Full Description"]
+     shrt_desc_idx = TILLER_TRSC_HDR_IDXS["Description"]
+     full_desc_idx = TILLER_TRSC_HDR_IDXS["Full Description"]
+     print(f"shrt_desc_idx  : {shrt_desc_idx} full_desc_idx {full_desc_idx}\n")
 
-     print(f"shrt_desc_idx : {shrt_desc_idx} full_desc_idx {full_desc_idx}")
-
+     vendors_many_list = []
+     venaddr_many_list = []
+       
      for row in data_rows:
       shrt_desc = row[shrt_desc_idx]
       full_desc = row[full_desc_idx]
       fast_hash = zlib.crc32((shrt_desc + full_desc).encode("utf-8"))
       #print(f"hash : {fast_hash}\t{shrt_desc}\t{full_desc}")
-      if(fast_hash not in found_vendors):
-        found_vendors.add(fast_hash)
+      if(fast_hash not in found_new_vendors):
+        found_new_vendors.add(fast_hash)
         print(f"+++ {shrt_desc} {full_desc}")
+
+        vendaddr_row = {}
+        for col in venaddr_columns:
+          if(col == "id"):
+            vendaddr_row[col] = fast_hash
+          else: 
+            vendaddr_row[col] = ""
+       
+        venaddr_many_list.append(vendaddr_row)
+        #print(f"\nvendaddr_many_list {venaddr_many_list}")
+
+        vendors_row   = {}
+        for col in vendors_columns:
+          if(col == "id"):
+            vendors_row[col] = fast_hash
+          elif(col == "full_desc"):
+            vendors_row[col] = full_desc
+          elif(col == "shrt_desc"):
+            vendors_row[col] = shrt_desc
+          elif(col == "type"):
+            vendors_row[col] = "GENERAL"
+          elif(col == "addr_id"):
+            vendors_row[col] = fast_hash
+          else:
+            vendors_row[col] = ""
+            
+        vendors_many_list.append(vendors_row)
+        
+          #if(col == "fast_hash"):
+          #  insert_row["fast_hash"] = fast_hash
+          #if(col == "id"):
+          #  sqa_conn.execute(vendors_table.insert().values(shrt_desc=shrt_desc))
+          #elif(col == "full_desc"):
+          #  sqa_conn.execute(vendors_table.insert().values(full_desc=full_desc))
+          #elif(col == "fast_hash"):
+          #  sqa_conn.execute(vendors_table.insert().values(fast_hash=fast_hash))
       else:
           print(f"=== {shrt_desc} {full_desc}")
+      
+      
+     print(f"\nInserting {len(venaddr_many_list)} new vendor addresses into the database...")
+     with sqa_engine.connect() as sqa_conn:
+      sqa_conn.execute(SQA.insert(venaddr_table), venaddr_many_list)
+      sqa_conn.execute(SQA.insert(vendors_table), vendors_many_list)
+      #sqa_conn.execute(venaddr_table.insert(), venaddr_many_list)
+      #sqa_conn.execute(vendors_table.insert(), vendors_many_list)
+
+     print(f"\nInserted {len(venaddr_many_list)} new vendor addresses into the database.\n")
 
   except HttpError as err:
     print(err)
+
+  print(f"Found {len(found_new_vendors)} unique vendors in the transactions spreadsheet.")
+  print("Done building the vendors list from the transactions spreadsheet.")
 
 """
 ------------------------------------------------------------------------------
@@ -168,7 +244,7 @@ def execute_sql_script(sql_fname):
   sqa_engine = create_engine(SQA_URL)
   print(f"Created database engine.\n\n")
 
-  #open the SQL script file and read its contents  
+  #open the SQL script file and readand execute its contents  
   with open(sql_fname, "r", encoding="utf-8") as sql_file:
     sql_script = sql_file.read()
     sql_statments = sql_script.split(";")
@@ -192,22 +268,24 @@ def execute_sql_script(sql_fname):
   -------------------------------------------------------------------------
 """
 def create_cmd_line_opts():
-    p = optparse.OptionParser()
-    p.add_option("-s","--fsql",
-                 dest="sql_fname",
+    usage = "usage: %prog spreadsheet[BANKS|CCARD|CITIBANK] [options]"
+    p = optparse.OptionParser(usage=usage)
+    p.add_option("--run_sql",
+                 dest="run_sql_fname",
                  action="store",
                  help="Execute the sql script file on the database."
                 )
-    p.add_option("--bvendors",
+    p.add_option("--out_file",
+                 dest="output_fname",
+                 action="store",
+                 help="The output file for the results."
+                )
+    p.add_option("-b","--build_vendors",
                  dest="bvendors",
                  action="store_true",
                  default=False,
-                 help="Build the vendors list from the tiller transactions spreadsheet."
+                 help="Build the vendors list from the given spreadsheet."
                 )
-
-    #p.add_option("--inp",action="store",dest="inpdir")
-    #p.add_option("-d",   action="store",dest="dbfile")
-    #p.add_option("--dbf",action="store",dest="dbfile")
     return p
 
 """
@@ -220,14 +298,25 @@ if __name__ == "__main__":
     cmd_opts  = create_cmd_line_opts()
     opts,args = cmd_opts.parse_args()
 
-    if(None == opts.sql_fname) and (False == opts.bvendors):
+    if(len(args) < 1):
+      print("Error must specify spreadsheet name. Type -h for usage")
+      sys.exit(1)
+    else:
+      spsht_name = args[0].upper()
+      if(spsht_name not in TILLER_SPRSH_IDXS):
+        print(f"Error invalid spreadsheet name {spsht_name}. Type -h for usage")
+        sys.exit(1)
+      else:
+        print(f"Spreadsheet name : {spsht_name}")
+
+    if(None == opts.run_sql_fname) and (False == opts.bvendors):
       print("Error must specify action. Type -h for usage")
       sys.exit(1)
 
     gg.init_googles()
 
     if(opts.bvendors):
-        build_vendors_list()
+        build_vendors_list(TILLER_SPRSH_IDXS[spsht_name])
 
-    elif(opts.sql_fname):
-        execute_sql_script(opts.sql_fname)
+    elif(opts.run_sql_fname):
+        execute_sql_script(opts.run_sql_fname)

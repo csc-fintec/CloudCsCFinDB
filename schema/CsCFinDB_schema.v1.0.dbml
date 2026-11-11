@@ -36,11 +36,11 @@ Table categories {
 }
 
 TablePartial address_base {
-    Address1 varchar(255) [not null]
-    Address2 varchar(255) [not null]
-    City varchar(100) [not null]
-    State varchar(100) [not null]
-    ZipCode varchar(20) [not null]
+    Address1 varchar(255)
+    Address2 varchar(255)
+    City varchar(100)
+    State varchar(100) 
+    ZipCode varchar(20)
 }
 
 
@@ -75,12 +75,13 @@ Table financials {
 
 //---------------------------------------------------------
 Table vendor_addresses {
-    id integer [pk,unique,not null,increment]
+    id bigint [pk,unique,not null]
+    business_name varchar(100) [null]
     ~address_base
 }
 
 Table vendors {
-    id integer [pk, unique, not null, increment]
+    id bigint [pk, unique, not null, increment]
     name varchar(100)
 
     //The name of the business that is associated with this vendor.
@@ -97,7 +98,7 @@ Table vendors {
 
     website varchar(255) [null]
 
-    addr_id integer [ref: > vendor_addresses.id] //The providor of the service involved in the transaction 
+    addr_id bigint [ref: > vendor_addresses.id] //The providor of the service involved in the transaction 
 }
 //---------------------------------------------------------
 
