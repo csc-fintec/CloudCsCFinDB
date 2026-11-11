@@ -6,6 +6,8 @@
 
 import os.path
 
+from dotenv import load_dotenv
+import googlemaps
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -19,6 +21,7 @@ GOOG_SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 GOOG_CREDENTIALS    = None
 GOOG_SPREADSHEETS   = None
 GOOG_SHEETS_SERVICE = None
+GOOG_MAPS           = None
 
 """
 ------------------------------------------------------------------------------
@@ -29,9 +32,21 @@ def init_googles():
   # The file token.json stores the user's access and refresh tokens, and is
   # created automatically when the authorization flow completes for the first
   # time.
+  global GOOG_MAPS
   global GOOG_CREDENTIALS
   global GOOG_SPREADSHEETS
   global GOOG_SHEETS_SERVICE
+
+  print("Initializing googlemaps..")
+  if os.path.exists("./.env"):
+    load_dotenv()
+    gmaps_api_key = os.getenv("GOOG_MAPS_API_KEY")
+    if not gmaps_api_key:
+      raise ValueError("API KEY GOOG_MAPS_API_KEY not found. Check .env file")
+    else:
+      GOOG_MAPS = googlemaps.Client(key=gmaps_api_key)
+      print("Initialized google maps api.")
+
 
   print("Initializing google credentials for tiller data reader...")
 
