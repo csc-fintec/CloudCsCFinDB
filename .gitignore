@@ -1,0 +1,10 @@
+#Files for git to ignore
+src/py/gg_cred.7z
+src/py/global_googles.py
+src/py/py.google
+src/py/py.xrmdups
+src/py/run_install_google.sh
+src/py/run_pip_inst_googles.sh
+src/py/token.json
+src/py/.env
+
