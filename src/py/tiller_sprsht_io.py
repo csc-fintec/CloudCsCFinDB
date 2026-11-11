@@ -136,13 +136,20 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
 
   vendors_columns = vendors_table.columns.keys()
   venaddr_columns = venaddr_table.columns.keys()
-
+  with sqa_engine.connect() as sqa_conn:
+    sqa_result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
+     
   print(f"Vendors columns: {vendors_columns}")
   print(f"Vendor Addresses columns: {venaddr_columns}")
  # """
 
-  found_new_vendors = set()
+  #Build a set of already existing vendors
+  existing_vendors = set()
+  if(len(sqa_result) > 0):
+    existing_vendors.update([sqa_row[0] for sqa_row in sqa_result])
 
+  print(f"Existing Vendors: {len(existing_vendors)}")
+  #if(1): sys.exit()
   try:
 
      data_range = (
@@ -169,8 +176,8 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
       full_desc = row[full_desc_idx]
       fast_hash = zlib.crc32((shrt_desc + full_desc).encode("utf-8"))
       #print(f"hash : {fast_hash}\t{shrt_desc}\t{full_desc}")
-      if(fast_hash not in found_new_vendors):
-        found_new_vendors.add(fast_hash)
+      if(fast_hash not in existing_vendors):
+        existing_vendors.add(fast_hash)
         print(f"+++ {shrt_desc} {full_desc}")
 
         vendaddr_row = {}
@@ -199,25 +206,19 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
             
         vendors_many_list.append(vendors_row)
         
-          #if(col == "fast_hash"):
-          #  insert_row["fast_hash"] = fast_hash
-          #if(col == "id"):
-          #  sqa_conn.execute(vendors_table.insert().values(shrt_desc=shrt_desc))
-          #elif(col == "full_desc"):
-          #  sqa_conn.execute(vendors_table.insert().values(full_desc=full_desc))
-          #elif(col == "fast_hash"):
-          #  sqa_conn.execute(vendors_table.insert().values(fast_hash=fast_hash))
       else:
           print(f"=== {shrt_desc} {full_desc}")
-      
-     vendors_insert = SQA.insert(vendors_table)
-     venaddr_insert = SQA.insert(venaddr_table)
 
-     with sqa_engine.connect() as sqa_conn:
-      sqa_conn.execute(venaddr_insert, venaddr_many_list) 
-      sqa_conn.execute(vendors_insert, vendors_many_list)
+     if(len(vendors_many_list ) > 0) :
+      vendors_insert = SQA.insert(vendors_table)
+      venaddr_insert = SQA.insert(venaddr_table)
+      with sqa_engine.connect() as sqa_conn:
+        sqa_conn.execute(venaddr_insert, venaddr_many_list) 
+        sqa_conn.execute(vendors_insert, vendors_many_list)
+      print(f"\nInserted {len(venaddr_many_list)} new vendor addresses into the database.\n")
+     else:
+      print(f"\nNo new vendors nothing to insert addresses into the database.\n")
 
-     print(f"\nInserted {len(venaddr_many_list)} new vendor addresses into the database.\n")
 
      #print(f"Querying the vendors table...")
      #with sqa_engine.connect() as sqa_conn:
@@ -229,7 +230,7 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
   except HttpError as err:
     print(err)
 
-  print(f"Found {len(found_new_vendors)} unique vendors in the transactions spreadsheet.")
+  print(f"Found {len(existing_vendors)} unique vendors in the transactions spreadsheet.")
   print("Done building the vendors list from the transactions spreadsheet.")
 
 def query_vendors_contents():
@@ -240,27 +241,26 @@ def query_vendors_contents():
   print(f"  Created database engine.\n")
 
   vendors_table = SQA.Table("vendors", SQA.MetaData(),autoload_with=sqa_engine)
-  venaddr_table = SQA.Table("vendor_addresses", SQA.MetaData(),autoload_with=sqa_engine)
+  #venaddr_table = SQA.Table("vendor_addresses", SQA.MetaData(),autoload_with=sqa_engine)
   vendors_columns = vendors_table.columns.keys()
-  venaddr_columns = venaddr_table.columns.keys()
+  #venaddr_columns = venaddr_table.columns.keys()
 
   print(f"Vendors columns: {vendors_columns}")
-  print(f"Vendor Addresses columns: {venaddr_columns}")
+ # print(f"Vendor Addresses columns: {venaddr_columns}")
 
   with sqa_engine.connect() as sqa_conn:
     #Query the vendors table
     print(f"Querying the vendors table...")
     sqa_result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
     print(f"Queried {len(sqa_result)} rows from the vendors table.")
-    for sqa_row in sqa_result:
-      print(sqa_row)
+    #for sqa_row in sqa_result:
+    #  print(sqa_row)
 
-    #Query the vendor_addresses table
-    #print(f"\nQuerying the vendor_addresses table...")
-    #result = sqa_conn.execute(SQA.select(venaddr_table)).fetchall()
-    #print(f"Queried {len(result)} rows from the vendor_addresses table.")
-    #for row in result:
-    #  print(row)
+    table_ids = [sqa_row[0] for sqa_row in sqa_result]
+
+    print(f"{len(table_ids)} rows from the vendors table.")
+    print(f"Table ids {table_ids}")
+
 
   print("End   querying the vendors vendors table.")
 
