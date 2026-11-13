@@ -182,17 +182,42 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
         existing_vendors.add(fast_hash)
         print(f"+++ {shrt_desc} {full_desc}")
 
+        goog_businfo = gg.goog_get_business_address(shrt_desc)
+        has_businfo  = True if len(goog_businfo) > 0 else False
+        print(f"Got business info of {len(goog_businfo)}")
         vendaddr_row = {}
         for col in venaddr_columns:
-          if(col == "id"):
-            vendaddr_row[col] = fast_hash
-          else: 
-            vendaddr_row[col] = ""
+          match col:
+            case "id": vendaddr_row[col] = fast_hash
+            case "business_name": vendaddr_row[col] = goog_businfo.get("busname") if has_businfo else ""
+            case "address":       vendaddr_row[col] = goog_businfo.get("street")  if has_businfo else ""
+            case "city":          vendaddr_row[col] = goog_businfo.get("city")    if has_businfo else ""
+            case "state":         vendaddr_row[col] = goog_businfo.get("state")   if has_businfo else ""
+            case "zipcode":       vendaddr_row[col] = goog_businfo.get("zipcode") if has_businfo else ""
+            case "country":       vendaddr_row[col] = goog_businfo.get("country") if has_businfo else ""
+            case _:               vendaddr_row[col] = ""
+          #if(col == "id"):
+          #  vendaddr_row[col] = fast_hash
+          #else: 
+          #  vendaddr_row[col] = ""
        
+        #if has_businfo: 
+          #print(f"vendaddr_row {vendaddr_row}")
+          #sys.exit(1)
+
         venaddr_many_list.append(vendaddr_row)
 
         vendors_row   = {}
         for col in vendors_columns:
+          match col:
+            case "id":             vendors_row[col] = fast_hash
+            case "type":          vendors_row[col] = "GENERAL"
+            case "addr_id":       vendors_row[col] = fast_hash
+            case "shrt_desc":     vendors_row[col] = shrt_desc
+            case "full_desc":     vendors_row[col] = full_desc
+            case "business_name": vendors_row[col] = goog_businfo.get("busname") if has_businfo else ""
+            case _:               vendors_row[col] = ""
+          """
           if(col == "id"):
             vendors_row[col] = fast_hash
           elif(col == "full_desc"):
@@ -203,9 +228,11 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
             vendors_row[col] = "GENERAL"
           elif(col == "addr_id"):
             vendors_row[col] = fast_hash
+          elif(col == "business_name"):
+            vendors_row[col] = vendors_row[col] = goog_businfo.get("busname") if has_businfo else ""
           else:
             vendors_row[col] = ""
-            
+           """    
         vendors_many_list.append(vendors_row)
         
       else:
@@ -289,9 +316,9 @@ def add_gmap_addresses():
       print(f"{idx}\t{sqa_row[shrt_desc_idx]}")
       bus_name_abrv = sqa_row[shrt_desc_idx]
       #asyncio.run(gg.goog_get_business_address(bus_name_abrv))
-      #gg.goog_get_business_address(bus_name_abrv)
-      gg.goog_get_business_address()
-      #if(1):sys.exit(0)
+      gg.goog_get_business_address(bus_name_abrv)
+      #gg.goog_get_business_address()
+      if(10 == idx):sys.exit(0)
 
 """
 ------------------------------------------------------------------------------
@@ -398,8 +425,8 @@ if __name__ == "__main__":
         add_gmap_addresses()
 
     if(opts.qt_name):
-      gg.goog_get_business_address()
-        #query_table_contents(opts.qt_name)
+      query_table_contents(opts.qt_name)
+      #gg.goog_get_business_address()
 
     elif(opts.run_sql_fname):
         execute_sql_script(opts.run_sql_fname)

@@ -22,7 +22,7 @@ from googlemaps import places
 #define a quick grammer for parsing addresses...
 import pyparsing as pp
 
-adg_st_wd = pp.Word(pp.alphas + "-'")
+adg_st_wd = pp.Word(pp.alphanums + "-'#")
 adg_st_nm = pp.Combine(pp.OneOrMore(adg_st_wd),join_string=" ",adjacent=False)
 adg_st_no = pp.Word(pp.nums + pp.alphas,min=1)
 adg_street = pp.Combine(adg_st_no + pp.OneOrMore(pp.White(" ") + adg_st_nm))("street")
@@ -143,13 +143,28 @@ def goog_get_business_address(bus_query : str = "Googleplex Mountain View"):
        bus_place = bus_places[0]
        bus_name  = bus_place.get("displayName")
        bus_addr  = bus_place.get("formattedAddress")
-       print(f"Name : {bus_name}")
+       print(f"Name : {bus_name["text"]}")
        print(f"Addr : {bus_addr}")
 
        adg_parsed  = adg.parse_string(bus_addr)
        print(adg_parsed.dump())
+       return {
+          "busname" : bus_name["text"],
+          "street"  : adg_parsed.street,
+          "city"    : adg_parsed.city,
+          "state"   : adg_parsed.state,
+          "zipcode" : adg_parsed.zipcode,
+          "country" : adg_parsed.country,
+          "phoneno" : ""
+       }
+      else:
+         return {}
+         for bdx,bus_place in enumerate(bus_places):
+          bus_name  = bus_place.get("displayName")
+          bus_addr  = bus_place.get("formattedAddress")
+          print(f"Addr : {bus_addr}")
+
   else:
       #print(f"NOT something for bus_name {bus_name_res.text}")
       print(f"Found NO addresses for bus_query {bus_query}")
-
-  if(1): sys.exit(0)
+      return {}

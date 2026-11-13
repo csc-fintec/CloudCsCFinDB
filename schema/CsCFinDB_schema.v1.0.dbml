@@ -37,9 +37,10 @@ Table categories {
 
 TablePartial address_base {
     address  varchar(255)
-    city     varchar(100)
-    state    varchar(100) 
-    zipcode  varchar(20)
+    city     varchar(255)
+    state    varchar(2) 
+    zipcode  varchar(5)
+    country  varchar(20)
     phoneno  varchar(20)
 }
 
