@@ -3,19 +3,45 @@
       The global functions of Google
 =========================================================
 """
-
+import sys
 import os.path
 
 from dotenv import load_dotenv
 import googlemaps
 
 import asyncio
+import requests
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googlemaps import places
+
+#define a quick grammer for parsing addresses...
+import pyparsing as pp
+adg_sw = pp.Word(pp.alphas)
+adg_st = pp.original_text_for(pp.OneOrMore(pp.alphas))
+adg_no = pp.Word(pp.nums)
+adg_street = adg_no  + adg_st
+adg_state = pp.one_of(\
+  "AL AK AZ AR CA CO CT DE FL GA\
+   HI ID IL IN IA KS KY LA ME MD\
+   MA MI MN MS MO MT NE NV NH NJ\
+   NM NY NC ND OH OK OR PA RI SC\
+   SD TN TX UT VT VA WA WV WI WY"
+).set_results_name("state")
+adg_ctry = pp.Word(pp.alphas).set_results_name("country")
+adg_city = pp.Word(pp.alphas).set_results_name("city")
+adg_zip  = pp.Word(pp.nums,exact=5).addParseAction(lambda t: int(t[0]))
+adg_zip.set_results_name("zipcode")
+adg = (
+  adg_street + pp.Literal(",") +
+  adg_city   + pp.Literal(",") +
+  adg_state  +  adg_zip + 
+  pp.Optional(pp.Literal(",") + pp.Optional(adg_ctry))
+)
+
 
 
 # If modifying these scopes, delete the file token.json.
@@ -31,7 +57,7 @@ GOOG_MAPS_HDR       = {
     "Content-Type": "application/json",
     "X-Goog-Api-Key": "",
     # Specify only the fields you need to control billing costs
-    "X-Goog-FieldMask": "places.displayName,places.formattedAddress"
+    "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress"
 }
 
 """
@@ -95,27 +121,37 @@ def goog_init():
   Initialize the google credentials and objects for the tiller data reader.
 ------------------------------------------------------------------------------
 """
-async def goog_get_business_address(bus_name: str):
-    print(f"Getting business address from {bus_name}.\n")
+def goog_get_business_address(bus_query : str = "Googleplex Mountain View"):
+  print(f"Getting business address of {bus_query}")
 
-    client = places.PlacesAsyncClient(
-        client_options={"api_key": GOOG_MAPS_API}
-    )
+  bus_name_req = {
+      "textQuery": bus_query
+  }
 
-    request = places.SearchTextRequest(text_query=bus_name)
+  #print(f"{bus_name_req}\n")
+  #print(f"{GOOG_MAPS_HDR}\n")
 
-    # Prefix fields with 'places.' for Text Search
-    field_mask = (
-        "places.id,places.displayName,places.formattedAddress,"
-        "places.addressComponents"
-    )
+  bus_query_res = requests.post(GOOG_MAPS_URL, 
+                               json=bus_name_req, 
+                               headers=GOOG_MAPS_HDR)
 
-    response = await client.search_text(
-        request=request, metadata=[("x-goog-fieldmask", field_mask)]
-    )
+  #print(f"Got response code {bus_name_res.status_code}")
+  
+  if(200 == bus_query_res.status_code):
+      bus_query_data = bus_query_res.json()
+      bus_places = bus_query_data.get("places",[])
+      print(f"Found {len(bus_places)} addresses for bus_name {bus_query}")
+      if(1 == len(bus_places)):
+       bus_place = bus_places[0]
+       bus_name  = bus_place.get("displayName")
+       bus_addr  = bus_place.get("formattedAddress")
+       print(f"Name : {bus_name}")
+       print(f"Addr : {bus_addr}")
 
-    for place in response.places:
-        print(f"Name: {place.display_name.text}")
-        print(f"Address: {place.formatted_address}")
-        print(f"Place ID: {place.id}\n")
+       adg_parsed  = adg.parse_string(bus_addr)
+       print(adg_parsed.dump())
+  else:
+      #print(f"NOT something for bus_name {bus_name_res.text}")
+      print(f"Found NO addresses for bus_query {bus_query}")
 
+  if(1): sys.exit(0)

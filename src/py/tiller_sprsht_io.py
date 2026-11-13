@@ -289,8 +289,10 @@ def add_gmap_addresses():
     for idx,sqa_row in enumerate(sqa_result):
       print(f"{idx}\t{sqa_row[shrt_desc_idx]}")
       bus_name_abrv = sqa_row[shrt_desc_idx]
-      asyncio.run(gg.goog_get_business_address(bus_name_abrv))
-      if(1):sys.exit(0)
+      #asyncio.run(gg.goog_get_business_address(bus_name_abrv))
+      #gg.goog_get_business_address(bus_name_abrv)
+      gg.goog_get_business_address()
+      #if(1):sys.exit(0)
 
 """
 ------------------------------------------------------------------------------
