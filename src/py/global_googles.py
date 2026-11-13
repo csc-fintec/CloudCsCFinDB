@@ -7,7 +7,6 @@ import sys
 import os.path
 
 from dotenv import load_dotenv
-import googlemaps
 
 import asyncio
 import requests
@@ -16,25 +15,27 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from googlemaps import places
+
+#import googlemaps
+#from googlemaps import places
 
 #define a quick grammer for parsing addresses...
 import pyparsing as pp
 adg_sw = pp.Word(pp.alphas)
-adg_st = pp.original_text_for(pp.OneOrMore(pp.alphas))
+adg_st = pp.originalTextFor(pp.OneOrMore(pp.alphas))
 adg_no = pp.Word(pp.nums)
 adg_street = adg_no  + adg_st
-adg_state = pp.one_of(\
+adg_state = pp.oneOf(\
   "AL AK AZ AR CA CO CT DE FL GA\
    HI ID IL IN IA KS KY LA ME MD\
    MA MI MN MS MO MT NE NV NH NJ\
    NM NY NC ND OH OK OR PA RI SC\
    SD TN TX UT VT VA WA WV WI WY"
-).set_results_name("state")
-adg_ctry = pp.Word(pp.alphas).set_results_name("country")
-adg_city = pp.Word(pp.alphas).set_results_name("city")
+)("state")
+adg_ctry = pp.Word(pp.alphas)("country")
+adg_city = pp.Word(pp.alphas)("city")
 adg_zip  = pp.Word(pp.nums,exact=5).addParseAction(lambda t: int(t[0]))
-adg_zip.set_results_name("zipcode")
+adg_zip.setResultsName("zipcode")
 adg = (
   adg_street + pp.Literal(",") +
   adg_city   + pp.Literal(",") +
@@ -86,6 +87,8 @@ def goog_init():
       GOOG_MAPS_API = googlemaps.Client(key=gmaps_api_key)
       GOOG_MAPS_HDR["X-Goog-Api-Key"] = gmaps_api_key
       print("Initialized google maps api.")
+  else:    
+      raise ValueError("Missing .env for google maps api file");
 
 
   print("Initializing google credentials for tiller data reader...")

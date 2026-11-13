@@ -18,7 +18,6 @@ from dotenv import load_dotenv
 
 #Google API imports
 import global_googles as gg
-#import requests
 import asyncio
 from googleapiclient.errors import HttpError
 
@@ -399,7 +398,8 @@ if __name__ == "__main__":
         add_gmap_addresses()
 
     if(opts.qt_name):
-        query_table_contents(opts.qt_name)
+      gg.goog_get_business_address()
+        #query_table_contents(opts.qt_name)
 
     elif(opts.run_sql_fname):
         execute_sql_script(opts.run_sql_fname)
