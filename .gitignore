@@ -7,5 +7,5 @@ src/py/token.json
 src/py/credentials.json
 src/py/.env
 database/dbml-error.log
-./googlemaps_api_key.txt
+googlemaps_api_key.txt
 

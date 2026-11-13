@@ -16,34 +16,32 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-#import googlemaps
-#from googlemaps import places
+import googlemaps
+from googlemaps import places
 
 #define a quick grammer for parsing addresses...
 import pyparsing as pp
-adg_sw = pp.Word(pp.alphas)
-adg_st = pp.originalTextFor(pp.OneOrMore(pp.alphas))
-adg_no = pp.Word(pp.nums)
-adg_street = adg_no  + adg_st
-adg_state = pp.oneOf(\
+
+adg_st_wd = pp.Word(pp.alphas + "-'")
+adg_st_nm = pp.Combine(pp.OneOrMore(adg_st_wd),join_string=" ",adjacent=False)
+adg_st_no = pp.Word(pp.nums + pp.alphas,min=1)
+adg_street = pp.Combine(adg_st_no + pp.OneOrMore(pp.White(" ") + adg_st_nm))("street")
+
+adg_us_state = pp.oneOf(\
   "AL AK AZ AR CA CO CT DE FL GA\
    HI ID IL IN IA KS KY LA ME MD\
    MA MI MN MS MO MT NE NV NH NJ\
    NM NY NC ND OH OK OR PA RI SC\
    SD TN TX UT VT VA WA WV WI WY"
 )("state")
+
+adg_city = pp.Word(pp.alphas + " ")("city")
+adg_zip  = pp.Word(pp.nums,exact=5).addParseAction(lambda t: int(t[0]))("zipcode")
 adg_ctry = pp.Word(pp.alphas)("country")
-adg_city = pp.Word(pp.alphas)("city")
-adg_zip  = pp.Word(pp.nums,exact=5).addParseAction(lambda t: int(t[0]))
-adg_zip.setResultsName("zipcode")
-adg = (
-  adg_street + pp.Literal(",") +
-  adg_city   + pp.Literal(",") +
-  adg_state  +  adg_zip + 
-  pp.Optional(pp.Literal(",") + pp.Optional(adg_ctry))
-)
-
-
+adg      = adg_street   + pp.Literal(",").suppress() + \
+           adg_city     + pp.Literal(",").suppress() + \
+           adg_us_state + adg_zip       + \
+           pp.Optional(pp.Literal(",").suppress() + adg_ctry)
 
 # If modifying these scopes, delete the file token.json.
 GOOG_SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
@@ -131,14 +129,11 @@ def goog_get_business_address(bus_query : str = "Googleplex Mountain View"):
       "textQuery": bus_query
   }
 
-  #print(f"{bus_name_req}\n")
-  #print(f"{GOOG_MAPS_HDR}\n")
-
   bus_query_res = requests.post(GOOG_MAPS_URL, 
                                json=bus_name_req, 
                                headers=GOOG_MAPS_HDR)
 
-  #print(f"Got response code {bus_name_res.status_code}")
+  print(f"Got response code {bus_query_res.status_code}")
   
   if(200 == bus_query_res.status_code):
       bus_query_data = bus_query_res.json()
