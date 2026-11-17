@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2026-11-13T19:01:22.375Z
+-- Generated at: 2026-11-16T22:51:37.897Z
 
 CREATE TYPE "TransactTypes" AS ENUM (
   'REFUND',
@@ -74,7 +74,7 @@ CREATE TABLE "vendors" (
   "business_name" varchar(100),
   "type" "VendorTypes",
   "shrt_desc" varchar(255),
-  "full_desc" varchar(255),
+  "full_desc" varchar(512),
   "website" varchar(255),
   "addr_id" bigint
 );

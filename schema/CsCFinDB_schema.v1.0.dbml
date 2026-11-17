@@ -94,7 +94,7 @@ Table vendors {
     //These are what the headers of the tiller spreadsheet are called.
     //They are not the same as the column names in the vendors table
     shrt_desc varchar(255) [null]
-    full_desc varchar(255) [null]
+    full_desc varchar(512) [null]
 
     website varchar(255) [null]
 

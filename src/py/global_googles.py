@@ -139,17 +139,22 @@ def goog_get_business_address(bus_query : str = "Googleplex Mountain View"):
       bus_query_data = bus_query_res.json()
       bus_places = bus_query_data.get("places",[])
       print(f"Found {len(bus_places)} addresses for bus_name {bus_query}")
-      if(1 == len(bus_places)):
+      if(0 < len(bus_places)):
        bus_place = bus_places[0]
-       bus_name  = bus_place.get("displayName")
+       bus_data  = bus_place.get("displayName")
+       bus_name  = bus_data.get("text")
        bus_addr  = bus_place.get("formattedAddress")
-       print(f"Name : {bus_name["text"]}")
+       print(f"Name : {bus_data}")
        print(f"Addr : {bus_addr}")
-
-       adg_parsed  = adg.parse_string(bus_addr)
-       print(adg_parsed.dump())
-       return {
-          "busname" : bus_name["text"],
+ 
+       #if 255 < len(bus_name):
+       #   print(f"Business name is too long\{bus_name}")
+       #   #sys.exit(1)
+       try:
+        adg_parsed  = adg.parse_string(bus_addr)
+        #print(adg_parsed.dump())
+        return {
+          "busname" : bus_name,
           "street"  : adg_parsed.street,
           "city"    : adg_parsed.city,
           "state"   : adg_parsed.state,
@@ -157,12 +162,16 @@ def goog_get_business_address(bus_query : str = "Googleplex Mountain View"):
           "country" : adg_parsed.country,
           "phoneno" : ""
        }
+       except Exception as e:
+          print(f"{e}")
+          return {} 
+
       else:
          return {}
-         for bdx,bus_place in enumerate(bus_places):
-          bus_name  = bus_place.get("displayName")
-          bus_addr  = bus_place.get("formattedAddress")
-          print(f"Addr : {bus_addr}")
+         #for bdx,bus_place in enumerate(bus_places):
+         # bus_name  = bus_place.get("displayName")
+         # bus_addr  = bus_place.get("formattedAddress")
+         # print(f"Addr : {bus_addr}")
 
   else:
       #print(f"NOT something for bus_name {bus_name_res.text}")

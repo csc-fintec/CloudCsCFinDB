@@ -35,6 +35,7 @@ PG_PASS   = "Ediki@k0ng"
 PG_HOST   = "localhost"
 PG_PORT   = "5432"
 
+
 SQA_URL = URL.create(
     drivername=PG_DRIVER,
     username=PG_USER,
@@ -77,6 +78,9 @@ TILLER_TRSC_HDR_IDXS =  {
 	 "Date Added": 13,
 	 "Category Hint": 14
 }
+
+#How many records for one add requst to the database
+DB_ADD_TEMPO=20
 
 # =========================================================
 
@@ -134,11 +138,14 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
   sqa_engine = create_engine(SQA_URL)
   print(f"  Created database engine.\n")
 
+
   vendors_table = SQA.Table("vendors", SQA.MetaData(),autoload_with=sqa_engine)
   venaddr_table = SQA.Table("vendor_addresses", SQA.MetaData(),autoload_with=sqa_engine)
 
   vendors_columns = vendors_table.columns.keys()
   venaddr_columns = venaddr_table.columns.keys()
+
+  #Get all the rows from the database...
   with sqa_engine.connect() as sqa_conn:
     sqa_result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
      
@@ -148,10 +155,30 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
 
   #Build a set of already existing vendors
   existing_vendors = set()
+
+  #Load up an existing set with existing vendor ids...
   if(len(sqa_result) > 0):
     existing_vendors.update([sqa_row[0] for sqa_row in sqa_result])
 
-  print(f"Existing Vendors: {len(existing_vendors)}")
+  print(f"---Begin with existing Vendors: {len(existing_vendors)}")
+
+  #-------------------------------
+  #Sub function to add to database
+  #-------------------------------
+  def add_to_db():
+    print(f"\n!!!!----------------------------------------------------------------")
+    print(f"!!! Inserting {len(vendors_many_list)} new vendors into the database\n")
+    #print(f"---\n{vendors_many_list}\n---\n")
+    #print(f"---\n{venaddr_many_list}\n---\n")
+    vendors_insert = SQA.insert(vendors_table)
+    venaddr_insert = SQA.insert(venaddr_table)
+    with sqa_engine.begin() as sqa_conn:
+        sqa_conn.execute(venaddr_insert, venaddr_many_list) 
+        sqa_conn.execute(vendors_insert, vendors_many_list)
+    print(f"!!! Inserted {len(venaddr_many_list)} new vendors into the database.")
+    print(f"!!!!----------------------------------------------------------------\n")
+    vendors_many_list.clear()
+    venaddr_many_list.clear()
 
   try:
      data_range = (
@@ -162,101 +189,91 @@ def build_vendors_list(use_spreadsheet_id=TILLER_SPRSH_ID_CITIBANK):
 
      data_rows = data_range.get("values", [])
      num_rows,num_cols = np.array(data_rows).shape
-
-     print(f"dimensions of transactions data: {num_rows} {num_cols}")
-     print(f"Num of relevent columns of the tiller spreadsheet : {num_cols}")
+     #print(f"dimensions of transactions data: {num_rows} {num_cols}")
+     print(f"rows:{num_rows} X cols:{num_cols}. Relevant content the tiller spreadsheet.\n")
 
      shrt_desc_idx = TILLER_TRSC_HDR_IDXS["Description"]
      full_desc_idx = TILLER_TRSC_HDR_IDXS["Full Description"]
-     print(f"shrt_desc_idx  : {shrt_desc_idx} full_desc_idx {full_desc_idx}\n")
+     #print(f"shrt_desc_idx  : {shrt_desc_idx} full_desc_idx {full_desc_idx}\n")
 
      vendors_many_list = []
      venaddr_many_list = []
-       
-     for row in data_rows:
+     adx = 0  
+
+     #Go through all the rows of the spreadsheet, check if they already exist, and
+     #add them to a running tally if not. Stop every 
+     for rdx,row in enumerate(data_rows):
       shrt_desc = row[shrt_desc_idx]
       full_desc = row[full_desc_idx]
       fast_hash = zlib.crc32((shrt_desc + full_desc).encode("utf-8"))
       #print(f"hash : {fast_hash}\t{shrt_desc}\t{full_desc}")
       if(fast_hash not in existing_vendors):
         existing_vendors.add(fast_hash)
-        print(f"+++ {shrt_desc} {full_desc}")
+        adx = adx + 1
+        print(f"+++ {adx} new vendor to add.")
+        print(f"    {len(shrt_desc)} : {shrt_desc}")
+        print(f"    {len(full_desc)} : {full_desc}")
+        #if(255 < len(shrt_desc)):
+        #  print(f"ERROR : shrt_desc length {len(shrt_desc)} exceeds 255 char max")
+        #  if(1):sys.exit(1)
+
 
         goog_businfo = gg.goog_get_business_address(shrt_desc)
         has_businfo  = True if len(goog_businfo) > 0 else False
-        print(f"Got business info of {len(goog_businfo)}")
+        #print(f"Got business info of {len(goog_businfo)}")
         vendaddr_row = {}
         for col in venaddr_columns:
           match col:
-            case "id": vendaddr_row[col] = fast_hash
-            case "business_name": vendaddr_row[col] = goog_businfo.get("busname") if has_businfo else ""
-            case "address":       vendaddr_row[col] = goog_businfo.get("street")  if has_businfo else ""
+            case "id":            vendaddr_row[col] = fast_hash
             case "city":          vendaddr_row[col] = goog_businfo.get("city")    if has_businfo else ""
             case "state":         vendaddr_row[col] = goog_businfo.get("state")   if has_businfo else ""
+            case "address":       vendaddr_row[col] = goog_businfo.get("street")  if has_businfo else ""
             case "zipcode":       vendaddr_row[col] = goog_businfo.get("zipcode") if has_businfo else ""
             case "country":       vendaddr_row[col] = goog_businfo.get("country") if has_businfo else ""
+            case "business_name": vendaddr_row[col] = goog_businfo.get("busname") if has_businfo else ""
             case _:               vendaddr_row[col] = ""
-          #if(col == "id"):
-          #  vendaddr_row[col] = fast_hash
-          #else: 
-          #  vendaddr_row[col] = ""
-       
-        #if has_businfo: 
-          #print(f"vendaddr_row {vendaddr_row}")
-          #sys.exit(1)
-
+          
         venaddr_many_list.append(vendaddr_row)
 
         vendors_row   = {}
         for col in vendors_columns:
           match col:
-            case "id":             vendors_row[col] = fast_hash
+            case "id":            vendors_row[col] = fast_hash
             case "type":          vendors_row[col] = "GENERAL"
             case "addr_id":       vendors_row[col] = fast_hash
             case "shrt_desc":     vendors_row[col] = shrt_desc
             case "full_desc":     vendors_row[col] = full_desc
             case "business_name": vendors_row[col] = goog_businfo.get("busname") if has_businfo else ""
             case _:               vendors_row[col] = ""
-          """
-          if(col == "id"):
-            vendors_row[col] = fast_hash
-          elif(col == "full_desc"):
-            vendors_row[col] = full_desc
-          elif(col == "shrt_desc"):
-            vendors_row[col] = shrt_desc
-          elif(col == "type"):
-            vendors_row[col] = "GENERAL"
-          elif(col == "addr_id"):
-            vendors_row[col] = fast_hash
-          elif(col == "business_name"):
-            vendors_row[col] = vendors_row[col] = goog_businfo.get("busname") if has_businfo else ""
-          else:
-            vendors_row[col] = ""
-           """    
+ 
         vendors_many_list.append(vendors_row)
-        
+        bAddToDb = (0 == (len(vendors_many_list) % DB_ADD_TEMPO))
+        #print(f"!!!  ====== Add to database? {bAddToDb}")
+        if (True == bAddToDb): add_to_db()
       else:
-          print(f"=== {shrt_desc} {full_desc}")
+          #print(f"=== {shrt_desc} + {full_desc}")
+          print(f"=== {rdx} from spreadsheet already exists.")
+          print(f"    {len(shrt_desc)} : {shrt_desc}")
+          print(f"    {len(full_desc)} : {full_desc}")
 
-     if(len(vendors_many_list ) > 0) :
-      vendors_insert = SQA.insert(vendors_table)
-      venaddr_insert = SQA.insert(venaddr_table)
-      with sqa_engine.begin() as sqa_conn:
-        sqa_conn.execute(venaddr_insert, venaddr_many_list) 
-        sqa_conn.execute(vendors_insert, vendors_many_list)
-      print(f"\nInserted {len(venaddr_many_list)} new vendor addresses into the database.\n")
-     else:
-      print(f"\nNo new vendors nothing to insert addresses into the database.\n")
+     #---End of for loop 
+
+     #If there are last remaining left over to add...
+     if(len(vendors_many_list ) > 0): add_to_db()
+     #else:
+     # print(f"\nNo new vendors. Nothing to insert into the database.\n")
 
   except HttpError as err:
     print(err)
 
-  print(f"Found {len(existing_vendors)} unique vendors in the transactions spreadsheet.")
+  #print(f"Found {len(existing_vendors)} unique vendors in the transactions spreadsheet.")
+
+  print(f"\n---finished with existing Vendors: {len(existing_vendors)}")
   print("Done building the vendors list from the transactions spreadsheet.")
 
 """
  ------------------------------------------------------------------------
-  query the vendors list from vendors database 
+  query a table's contents from the database
  ------------------------------------------------------------------------
 """
 def query_table_contents(table_name = "vendors"):
@@ -281,9 +298,8 @@ def query_table_contents(table_name = "vendors"):
 
 """
  ------------------------------------------------------------------------
-  Update vendors addresses from googlemaps
+  Show the vendors addresses obtained from googlemaps
  ------------------------------------------------------------------------
-"""
 def add_gmap_addresses():
   print(f"Begin building the googlemap addresses...")
 
@@ -315,15 +331,15 @@ def add_gmap_addresses():
     for idx,sqa_row in enumerate(sqa_result):
       print(f"{idx}\t{sqa_row[shrt_desc_idx]}")
       bus_name_abrv = sqa_row[shrt_desc_idx]
-      #asyncio.run(gg.goog_get_business_address(bus_name_abrv))
       gg.goog_get_business_address(bus_name_abrv)
-      #gg.goog_get_business_address()
-      if(10 == idx):sys.exit(0)
+      if(10 == idx): sys.exit(0)
 
 """
-------------------------------------------------------------------------------
+
+"""
+------------------------------------------------------------------------
    Read and execute the sql script file on the database.
-------------------------------------------------------------------------------
+------------------------------------------------------------------------
 """
 def execute_sql_script(sql_fname):
   print(f"Executing sql script {sql_fname} on the database....\n")
@@ -337,12 +353,12 @@ def execute_sql_script(sql_fname):
   with open(sql_fname, "r", encoding="utf-8") as sql_file:
     sql_script = sql_file.read()
     sql_statments = sql_script.split(";")
-  with sqa_engine.connect() as sqa_conn:
+
+  with (0 < len(sql_statments)) and sqa_engine.connect() as sqa_conn:
     print(f"Executing sql statments on engine.\n")
     for sql_stmt in sql_statments:
       sql_stmt = sql_stmt.strip()
-      #if(len(sql_stmt) > 0) and (not sql_stmt.startswith("--")):
-      if(len(sql_stmt) > 0): #and (not sql_stmt.startswith("--")):
+      if(len(sql_stmt) > 0): 
         print(f"Executing sql statement: {sql_stmt}\n")
         # Execute the SQL statement on the database
         sqa_conn.execute(text(sql_stmt))
@@ -359,32 +375,28 @@ def execute_sql_script(sql_fname):
 def create_cmd_line_opts():
     usage = "usage: %prog spreadsheet[BANKS|CCARD|CITIBANK] [options]"
     p = optparse.OptionParser(usage=usage)
+
     p.add_option("--run_sql",
-                 dest="run_sql_fname",
+                 dest="sql_fname",
                  action="store",
                  help="Execute the sql script file on the database."
                 )
-    p.add_option("--out_file",
-                 dest="output_fname",
-                 action="store",
-                 help="The output file for the results."
-                )
     p.add_option("-q","--query_table",
-                 dest="qt_name",
+                 dest="qry_tname",
                  action="store",
                  help="Query a database table contents."
                 )
     p.add_option("-b","--build_vendors",
-                 dest="bvendors",
+                 dest="bld_vendors",
                  action="store_true",
                  default=False,
-                 help="Build the vendors list from the given spreadsheet."
+                 help="Build the vendors table from the given spreadsheet."
                 )
     p.add_option("-g","--add_gmap_addresses",
                  dest="gmap_addrs",
                  action="store_true",
                  default=False,
-                 help="Add addresses from the google maps addresses"
+                 help="Add vendor addresses from the google Places API"
                 )
     return p
 
@@ -409,24 +421,24 @@ if __name__ == "__main__":
       else:
         print(f"Spreadsheet name : {spsht_name}")
 
-    if(None == opts.run_sql_fname) and \
-      (None == opts.qt_name)       and \
+    if(None  == opts.sql_fname)   and \
+      (None  == opts.qry_tname)   and \
       (False == opts.gmap_addrs)  and \
-      (False == opts.bvendors): 
+      (False == opts.bld_vendors): 
       print("Error must specify action. Type -h for usage")
       sys.exit(1)
 
     gg.goog_init()
    
-    if(opts.bvendors):
+    if(opts.bld_vendors):
         build_vendors_list(TILLER_SPRSH_IDXS[spsht_name])
 
-    if(opts.gmap_addrs):
-        add_gmap_addresses()
+    #if(opts.gmap_addrs):
+    #    add_gmap_addresses()
 
-    if(opts.qt_name):
-      query_table_contents(opts.qt_name)
-      #gg.goog_get_business_address()
+    if(opts.qry_tname):
+      query_table_contents(opts.qry_tname)
+  
 
-    elif(opts.run_sql_fname):
-        execute_sql_script(opts.run_sql_fname)
+    elif(opts.sql_fname):
+        execute_sql_script(opts.sql_fname)
