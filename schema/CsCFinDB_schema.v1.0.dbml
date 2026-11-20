@@ -4,35 +4,36 @@ Project CsCFinDB_schema {
 }
 
 enum TransactTypes { //The type of the transaction that was performed
+  TAXES
   REFUND
   INCOME
   EXPENSE
   PENALTY
   TRANSFER
-  UNCLASSIFIED
-}
-
-enum FinanceTypes { //The type of the money that was used
-  CASH
-  CHECK 
-  DEBIT 
-  CCARD
   UNKNOWN
 }
 
-enum VendorTypes { //The type of the vendor
+enum PaymentTypes { //The type of payment that was used
+  CHECK 
+  DEBIT 
+  CREDIT
+}
+
+enum FinancialTypes { //The type financial instiutions that provided the funds
   BANK
+  CCARD
   BROKER
+  UNKNOWN
+}
+
+// BANK
+// BROKER
+
+enum VendorTypes { //The type of the vendor
   MERCHANT
   INSURANCE
   GOVERNMENT
   GENERAL
-}
-
-Table categories {
-    id integer [pk,unique,not null,increment]
-    name varchar(100) [not null, unique]
-    description varchar(255)
 }
 
 TablePartial address_base {
@@ -44,33 +45,39 @@ TablePartial address_base {
     phoneno  varchar(20)
 }
 
+Table categories {
+    id integer [pk,unique,not null,increment]
+    name varchar(100) [not null, unique]
+    description varchar(255)
+}
 
 Table financial_addresses {
-    id integer [pk,unique,not null,increment]
+    id bigint [pk,unique,not null]
+    location_name varchar(100) [null]
     ~address_base
 }
 
-//Financial instruments are the different ways that money can be used to pay for things.
-Table financials {
-    id integer [pk, unique, not null, increment]
+//Financial instruments are the different ways 
+//that money can be used to pay for things.
+Table financial_instruments {
+    id bigint [pk, unique, not null]
 
-    name varchar(100)
+    type FinancialTypes
 
-    type FinanceTypes
-
-    routing_numb integer      [null]  //If this is a bank account
-    account_desc varchar(100) [null]
-    account_numb integer      [null]
-    accnumb_abrv varchar(100) [null]
+    //name         varchar(100)
     institution  varchar(100) [null]
+    accnumb_abrv varchar(20)  [null]
+    account_desc varchar(100) [null]
 
-    //#description      varchar(255) [null]
-    //#full_description varchar(255) [null]
 
-    interest_rate integer [null] //Only if this is a credit card
-    expiration_date date  [null]  ///Only if this is a credit card 
+    routing_numb varchar(20) [null]  //If this is a bank account
+    account_numb varchar(20) [null]
 
-    addr_id integer [ref: > financial_addresses.id] 
+    balance         numeric(5,4) [null]
+    interest_rate   numeric(5,4) [null] //Only if this is a credit card
+    expiration_date date         [null]  ///Only if this is a credit card 
+
+    addr_id bigint [ref: > financial_addresses.id] 
 }
 
 
@@ -82,40 +89,42 @@ Table vendor_addresses {
 }
 
 Table vendors {
-    id bigint [pk, unique, not null, increment]
+    id bigint [pk, unique, not null]
+
+    type VendorTypes //The classification of the vendor,
 
     //The name of the business that is associated with this vendor.
     //This is not the same as the name of the vendor itself. 
     //For example, the vendor might be "Amazon" but the business name might be "Amazon.com, Inc."
     business_name varchar(100) [null]
 
-    type VendorTypes
-
     //These are what the headers of the tiller spreadsheet are called.
     //They are not the same as the column names in the vendors table
     shrt_desc varchar(255) [null]
     full_desc varchar(512) [null]
 
-    website varchar(255) [null]
+    website varchar(255)   [null]
 
     addr_id bigint [ref: > vendor_addresses.id] //The providor of the service involved in the transaction 
 }
 //---------------------------------------------------------
 
 Table transactions {
-    id integer [pk, unique, not null, increment]
+    id bigint [pk, unique, not null]
 
     date date
 
-    amount  decimal
-    product varchar(255)
+    amount  numeric(5,4) [null]
 
-    type TransactTypes
+    product varchar(255) [null]
 
-    description varchar(255)
-    full_description varchar(255)
+    ptype PaymentTypes
+    ttype TransactTypes
+
+    shrt_desc varchar(255)
+    full_desc varchar(512)
     
-    categ_id integer [ref: > categories.id]  //The category of the transaction
-    money_id integer [ref: > financials.id] //The monetary instrument used
-    vendr_id integer [ref: > vendors.id] //The providor of the service involved in the transacion
+    categ_id bigint [ref: > categories.id]  //The category of the transaction
+    vendr_id bigint [ref: > vendors.id] //The providor of the service involved in the transacion
+    money_id bigint [ref: > financial_instruments.id] //The monetary instrument used
 }

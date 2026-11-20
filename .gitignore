@@ -4,8 +4,10 @@ src/py/py.xrmdups
 src/py/run_install_google.sh
 src/py/run_pip_inst_googles.sh
 src/py/token.json
+src/py/json.token
 src/py/credentials.json
 src/py/.env
 database/dbml-error.log
 googlemaps_api_key.txt
+CsCFinDB_PrivacyPolicy.pdf
 
