@@ -29,6 +29,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 import urllib.parse
 
+
 #PostgreSQL database connection constants
 PG_DRIVER = "postgresql+psycopg"
 PG_USER   = "legba"
@@ -43,7 +44,7 @@ SQA_URL = URL.create(
     password=PG_PASS,
     host=PG_HOST,
     port=PG_PORT,
-    database="cscfindb"
+    database="cscfindbx"
 )
 
 #Tiller spreadsheet data reader constants
@@ -126,7 +127,15 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
   venaddr_columns = venaddr_table.columns.keys()
   fininst_columns = fininst_table.columns.keys()
   finaddr_columns = finaddr_table.columns.keys()
-
+        
+  emptyaddr_hash  =  zlib.crc32(
+                   ("NO location_name"  +
+                    "NO address"        +
+                    "NO city"           +
+                    "NO state"          +
+                    "NO zipcode"        +
+                    "NO country"        +
+                    "NO phoneno").encode("utf-8"))
   #print(f"Vendors columns: {vendors_columns}")
   #print(f"Vendor Addresses columns: {venaddr_columns}")
 
@@ -134,10 +143,12 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
   with sqa_engine.connect() as sqa_conn:
     sqa_vendors_result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
     sqa_fininst_result = sqa_conn.execute(SQA.select(fininst_table)).fetchall()
+    sqa_finaddr_result = sqa_conn.execute(SQA.select(finaddr_table)).fetchall()
      
   #Build a set of already existing vendors
   existing_vendors = set()
   existing_fininst = set()
+  existing_finaddr = set()
 
   #Load up an existing set with existing ids from the database
   if(len(sqa_vendors_result) > 0):
@@ -146,8 +157,10 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
   if(len(sqa_fininst_result) > 0):
     existing_fininst.update([sqa_row[0] for sqa_row in sqa_fininst_result])
 
+
   print(f"---Begin with existing Vendors: {len(existing_vendors)}")
   print(f"---Begin with existing Fininst: {len(existing_fininst)}")
+  print(f"---Begin with existing Finaddr: {len(existing_finaddr)}")
 
   #-------------------------------------------------------------------------------
   #Sub function to add vendor tables in database
@@ -163,7 +176,7 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
         sqa_conn.execute(venaddr_insert, venaddr_addrows_list) 
         sqa_conn.execute(vendors_insert, vendors_addrows_list)
     print(f"!!! Inserted {len(venaddr_addrows_list)} new vendors into the database.")
-    print(f"!!!!----------------------------------------------------------------\n")
+    print(f"!!! -------------------------------------------------------------------\n")
     vendors_addrows_list.clear()
     venaddr_addrows_list.clear()
   #-------------------------------------------------------------------------------
@@ -173,20 +186,49 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
   #-------------------------------------------------------------------------------
   def add_fina_db():
     print(f"\n!!!!----------------------------------------------------------------")
-    print(f"!!! Inserting {len(fininst_addrows_list)} new financials into the database\n")
-    print(f"!!! Inserting {finaddr_addrows_list}\n")
-    print(f"!!! Inserting {fininst_addrows_list}\n")
+    print(f"!!! Inserting {len(finaddr_addrows_list)} new financial addresses into the database.")
+    have_finaddr  = True if len(finaddr_addrows_list) > 0 else False
     fininst_insert = SQA.insert(fininst_table)
     finaddr_insert = SQA.insert(finaddr_table)
-
     with sqa_engine.begin() as sqa_conn:
-        sqa_conn.execute(finaddr_insert, finaddr_addrows_list)
+        if have_finaddr: 
+          sqa_conn.execute(finaddr_insert, finaddr_addrows_list)
         sqa_conn.execute(fininst_insert, fininst_addrows_list) 
-    print(f"!!! Inserted {len(finaddr_addrows_list)} new vendors into the database.")
     print(f"!!!!----------------------------------------------------------------\n")
     fininst_addrows_list.clear()
     finaddr_addrows_list.clear()
-    #-------------------------------------------------------------------------------
+  #----------------------------------------------------------------------------------
+
+  #-------------------------------------------------------------------------------
+  #Sub function to add an empty address place holder to the addresses table...
+  #-------------------------------------------------------------------------------
+  def add_emptyaddr_to_db():
+    print(f"\n!!!!----------------------------------------------------------------")
+    print(f"!!! Inserting empty address into into the database\n")
+    empaddr_row  = {
+              "id"            : emptyaddr_hash,
+              "location_name" : "NO location_name",
+              "address"       : "NO address",
+              "city"          : "NO city",
+              "state"         : "XX",
+              "zipcode"       : "XXXXX",
+              "country"       : "XXX",
+              "phoneno"       : ""
+    }
+    emptyaddr_addrows_list = []
+    emptyaddr_addrows_list.append(empaddr_row)
+    empaddr_insert = SQA.insert(finaddr_table)
+    with sqa_engine.begin() as sqa_conn:
+         sqa_conn.execute(empaddr_insert, emptyaddr_addrows_list) 
+    print(f"!!! -------------------------------------------------------------------\n")
+  #-------------------------------------------------------------------------------
+
+  if(len(sqa_finaddr_result) > 0):
+    existing_finaddr.update([sqa_row[0] for sqa_row in sqa_finaddr_result])
+  else:
+    add_emptyaddr_to_db()
+  
+
 
   try:
      #Load the data from the spreadsheet here.
@@ -204,7 +246,7 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
      full_desc_idx = TILLER_TRSC_HDR_IDXS["Full Description"]
 
      acntnm_idx    = TILLER_TRSC_HDR_IDXS["Account"]
-     acntno_idx    = TILLER_TRSC_HDR_IDXS["Account #"]
+     acntno_idx    = TILLER_TRSC_HDR_IDXS["Account #"]  #Not actual account number. An abriavation e.g. X1245
      instut_idx    = TILLER_TRSC_HDR_IDXS["Institution"]
 
      #print(f"shrt_desc_idx  : {shrt_desc_idx} full_desc_idx {full_desc_idx}\n")
@@ -214,7 +256,7 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
      finaddr_addrows_list = []
      fininst_addrows_list = []
 
-     vdx = 0  
+     vdx = 0 
      fdx = 0  
 
      #Go through all the rows of the spreadsheet, check if they already exist, and
@@ -275,9 +317,14 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
           print(f"=== {rdx} from spreadsheet already exists.")
           print(f"    {len(shrt_desc)} : {shrt_desc}")
           print(f"    {len(full_desc)} : {full_desc}")
+      
+      #------------------------------------------------------------------
+      #  Adding the financials information...
+      #------------------------------------------------------------------
 
       if(fina_hash not in existing_fininst):
         existing_fininst.add(fina_hash)
+        faddr_hash = fina_hash
         fdx = fdx + 1
         print(f"+++ {fdx} new financial to add.")
         print(f"    {len(instut)} : {instut}")
@@ -286,19 +333,47 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
         goog_businfo = gg.goog_get_business_address(instut)
         has_businfo  = True if len(goog_businfo) > 0 else False
         print(f"{instut} got business info of {len(goog_businfo)}")
-        finaddr_addrow = {}
-        for col in finaddr_columns:
-          match col:
-            case "id":            finaddr_addrow[col] = fina_hash
-            case "city":          finaddr_addrow[col] = goog_businfo.get("city")    if has_businfo else ""
-            case "state":         finaddr_addrow[col] = goog_businfo.get("state")   if has_businfo else ""
-            case "address":       finaddr_addrow[col] = goog_businfo.get("street")  if has_businfo else ""
-            case "zipcode":       finaddr_addrow[col] = goog_businfo.get("zipcode") if has_businfo else ""
-            case "country":       finaddr_addrow[col] = goog_businfo.get("country") if has_businfo else ""
-            case "location_name": finaddr_addrow[col] = goog_businfo.get("busname") if has_businfo else ""
-            case _:               finaddr_addrow[col] = ""
+
+        if has_businfo:
+          taddr_hash = zlib.crc32(
+                      (goog_businfo.get("street")  +
+                       goog_businfo.get("city")    +
+                       goog_businfo.get("state")   +
+                       str(goog_businfo.get("zipcode")) +
+                       goog_businfo.get("country")
+                      ).encode("utf-8"))
+
+          #Existing financial address  
+          if(taddr_hash not in existing_finaddr):
+            faddr_hash = taddr_hash
+            existing_finaddr.add(faddr_hash)
+            #"""
+            finaddr_cols   = [
+              "id",
+              "location_name",
+              "address",
+              "city",
+              "state",
+              "zipcode",
+              "country",
+              "phoneno"
+            ]
+            finaddr_vals = [
+              faddr_hash,
+              goog_businfo.get("busname"),
+              goog_businfo.get("street"),
+              goog_businfo.get("city"),
+              goog_businfo.get("state"),
+              goog_businfo.get("zipcode"),
+              goog_businfo.get("country"),
+              ""
+            ]
+            finaddr_addrows_list.append({k: v for k,v in zip(finaddr_cols,finaddr_vals)})
+
         #
-        finaddr_addrows_list.append(finaddr_addrow)
+        #Link to the emptyaddr_hash
+        #
+        else: faddr_hash = emptyaddr_hash
 
         date_str = datetime.now().strftime("%m-%d-%Y")
         type_str = "BANK" if ("BANKS" == spreadsheet_ky) else "CCARD"
@@ -308,7 +383,7 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
           match col:
             case "id":              fininst_addrow[col] = fina_hash
             case "type":            fininst_addrow[col] = type_str
-            case "addr_id":         fininst_addrow[col] = fina_hash
+            case "addr_id":         fininst_addrow[col] = faddr_hash
             case "balance":         fininst_addrow[col] = 0.00
             case "interest_rate":   fininst_addrow[col] = 0.00
             case "account_desc":    fininst_addrow[col] = acntnm 
@@ -316,7 +391,6 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
             case "institution":     fininst_addrow[col] = instut 
             case "expiration_date": fininst_addrow[col] = date_str 
             case _:                 fininst_addrow[col] = "" 
- 
         fininst_addrows_list.append(fininst_addrow)
      #---End of for loop 
      #================================================================
@@ -511,15 +585,11 @@ if __name__ == "__main__":
          print(f"Spreadsheet name : {spsht_name}")
 
     if((0     != len(args))         or  \
-       (True  == opts.all_sprshts)) and \
+       (True  == opts.all_sprshts))  and \
       ((None  != opts.sql_fname)    or
        (None  != opts.qry_tname)):
         print(f"Error: Do not specify spreadsheet name or -a option with -r or -q option. Type -h for usage")
         sys.exit(1)
-
-    #print(f"Date : {date_str}")
-
-    #if(1): sys.exit(1)
 
     #Initialize the Google information
     gg.goog_init()

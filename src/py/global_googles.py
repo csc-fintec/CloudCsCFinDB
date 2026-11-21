@@ -22,16 +22,16 @@ from googlemaps import places
 #define a quick grammer for parsing addresses...
 import pyparsing as pp
 
-adg_st_wd = pp.Word(pp.alphanums + "-'#")
-adg_st_nm = pp.Combine(pp.OneOrMore(adg_st_wd),join_string=" ",adjacent=False)
-adg_st_no = pp.Word(pp.nums + pp.alphas,min=1)
+adg_st_wd  = pp.Word(pp.alphanums + "-'#")
+adg_st_nm  = pp.Combine(pp.OneOrMore(adg_st_wd),join_string=" ",adjacent=False)
+adg_st_no  = pp.Word(pp.nums + pp.alphas,min=1)
 adg_street = pp.Combine(adg_st_no + pp.OneOrMore(pp.White(" ") + adg_st_nm))("street")
 
 adg_us_state = pp.oneOf(\
-  "AL AK AZ AR CA CO CT DE FL GA\
-   HI ID IL IN IA KS KY LA ME MD\
-   MA MI MN MS MO MT NE NV NH NJ\
-   NM NY NC ND OH OK OR PA RI SC\
+  "AL AK AZ AR CA CO CT DE FL GA \
+   HI ID IL IN IA KS KY LA ME MD \
+   MA MI MN MS MO MT NE NV NH NJ \
+   NM NY NC ND OH OK OR PA RI SC \
    SD TN TX UT VT VA WA WV WI WY"
 )("state")
 
