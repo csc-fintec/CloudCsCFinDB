@@ -81,6 +81,39 @@ TILLER_TRSC_HDR_IDXS =  {
 	 "Category Hint": 14
 }
 
+#Database constants
+DB_EMPTYADDR_HASH  =  zlib.crc32(
+                   ("NO location_name"  +
+                    "NO address"        +
+                    "NO city"           +
+                    "NO state"          +
+                    "NO zipcode"        +
+                    "NO country"        +
+                    "NO phoneno").encode("utf-8"))
+"""
+DB_EMPTYADDR_ROW  = {
+              "id"            : DB_EMPTYADDR_HASH,
+              "location_name" : "NO location_name",
+              "address"       : "NO address",
+              "city"          : "NO city",
+              "state"         : "XX",
+              "zipcode"       : "XXXXX",
+              "country"       : "XXX",
+              "phoneno"       : ""
+}
+"""
+
+DB_EMPTYADDR_LIST = [{
+      "id"            : DB_EMPTYADDR_HASH,
+      "location_name" : "NO location_name",
+      "address"       : "NO address",
+      "city"          : "NO city",
+      "state"         : "XX",
+      "zipcode"       : "XXXXX",
+      "country"       : "XXX",
+      "phoneno"       : ""
+  }]
+
 #How many records for one add requst to the database
 DB_ADD_TEMPO=50
 
@@ -126,8 +159,9 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
   vendors_columns = vendors_table.columns.keys()
   venaddr_columns = venaddr_table.columns.keys()
   fininst_columns = fininst_table.columns.keys()
-  finaddr_columns = finaddr_table.columns.keys()
-        
+  #finaddr_columns = finaddr_table.columns.keys()
+
+  """
   emptyaddr_hash  =  zlib.crc32(
                    ("NO location_name"  +
                     "NO address"        +
@@ -136,6 +170,7 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
                     "NO zipcode"        +
                     "NO country"        +
                     "NO phoneno").encode("utf-8"))
+  """      
   #print(f"Vendors columns: {vendors_columns}")
   #print(f"Vendor Addresses columns: {venaddr_columns}")
 
@@ -160,7 +195,7 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
 
   print(f"---Begin with existing Vendors: {len(existing_vendors)}")
   print(f"---Begin with existing Fininst: {len(existing_fininst)}")
-  print(f"---Begin with existing Finaddr: {len(existing_finaddr)}")
+  #print(f"---Begin with existing Finaddr: {len(existing_finaddr)}")
 
   #-------------------------------------------------------------------------------
   #Sub function to add vendor tables in database
@@ -205,31 +240,18 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
   def add_emptyaddr_to_db():
     print(f"\n!!!!----------------------------------------------------------------")
     print(f"!!! Inserting empty address into into the database\n")
-    empaddr_row  = {
-              "id"            : emptyaddr_hash,
-              "location_name" : "NO location_name",
-              "address"       : "NO address",
-              "city"          : "NO city",
-              "state"         : "XX",
-              "zipcode"       : "XXXXX",
-              "country"       : "XXX",
-              "phoneno"       : ""
-    }
-    emptyaddr_addrows_list = []
-    emptyaddr_addrows_list.append(empaddr_row)
     empaddr_insert = SQA.insert(finaddr_table)
     with sqa_engine.begin() as sqa_conn:
-         sqa_conn.execute(empaddr_insert, emptyaddr_addrows_list) 
+         sqa_conn.execute(empaddr_insert, DB_EMPTYADDR_LIST) 
     print(f"!!! -------------------------------------------------------------------\n")
   #-------------------------------------------------------------------------------
 
   if(len(sqa_finaddr_result) > 0):
     existing_finaddr.update([sqa_row[0] for sqa_row in sqa_finaddr_result])
+    print(f"---Begin with existing Finaddr: {len(existing_finaddr)}")
   else:
     add_emptyaddr_to_db()
   
-
-
   try:
      #Load the data from the spreadsheet here.
      spsht_data_range = (
@@ -248,8 +270,6 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
      acntnm_idx    = TILLER_TRSC_HDR_IDXS["Account"]
      acntno_idx    = TILLER_TRSC_HDR_IDXS["Account #"]  #Not actual account number. An abriavation e.g. X1245
      instut_idx    = TILLER_TRSC_HDR_IDXS["Institution"]
-
-     #print(f"shrt_desc_idx  : {shrt_desc_idx} full_desc_idx {full_desc_idx}\n")
 
      vendors_addrows_list = []
      venaddr_addrows_list = []
@@ -324,7 +344,7 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
 
       if(fina_hash not in existing_fininst):
         existing_fininst.add(fina_hash)
-        faddr_hash = fina_hash
+        faddr_hash = DB_EMPTYADDR_HASH
         fdx = fdx + 1
         print(f"+++ {fdx} new financial to add.")
         print(f"    {len(instut)} : {instut}")
@@ -345,9 +365,8 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
 
           #Existing financial address  
           if(taddr_hash not in existing_finaddr):
+            existing_finaddr.add(taddr_hash)
             faddr_hash = taddr_hash
-            existing_finaddr.add(faddr_hash)
-            #"""
             finaddr_cols   = [
               "id",
               "location_name",
@@ -370,28 +389,43 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
             ]
             finaddr_addrows_list.append({k: v for k,v in zip(finaddr_cols,finaddr_vals)})
 
-        #
-        #Link to the emptyaddr_hash
-        #
-        else: faddr_hash = emptyaddr_hash
+          else: faddr_hash = taddr_hash
+
+
 
         date_str = datetime.now().strftime("%m-%d-%Y")
         type_str = "BANK" if ("BANKS" == spreadsheet_ky) else "CCARD"
 
-        fininst_addrow   = {}
-        for col in fininst_columns:
-          match col:
-            case "id":              fininst_addrow[col] = fina_hash
-            case "type":            fininst_addrow[col] = type_str
-            case "addr_id":         fininst_addrow[col] = faddr_hash
-            case "balance":         fininst_addrow[col] = 0.00
-            case "interest_rate":   fininst_addrow[col] = 0.00
-            case "account_desc":    fininst_addrow[col] = acntnm 
-            case "accnumb_abrv":    fininst_addrow[col] = acntno 
-            case "institution":     fininst_addrow[col] = instut 
-            case "expiration_date": fininst_addrow[col] = date_str 
-            case _:                 fininst_addrow[col] = "" 
-        fininst_addrows_list.append(fininst_addrow)
+        finst_cols = [
+            "id",              #fininst_addrow[col] = fina_hash
+            "type",            #fininst_addrow[col] = type_str
+            "institution",     #fininst_addrow[col] = instut
+            "accnumb_abrv",    #fininst_addrow[col] = acntno 
+            "account_desc",    #fininst_addrow[col] = acntnm 
+            "routing_numb",    #fininst_addrow[col] = acntnm 
+            "account_numb",    #fininst_addrow[col] = acntnm 
+            "balance",         #fininst_addrow[col] = 0.00
+            "interest_rate",   #fininst_addrow[col] = 0.00
+            "expiration_date", #fininst_addrow[col] = date_str 
+            "addr_id"          #fininst_addrow[col] = faddr_hash
+        ]
+
+        finst_vals = [
+            fina_hash,
+            type_str,
+            instut,
+            acntno,
+            acntnm,
+            "",
+            "",
+            0.00,
+            0.00,
+            date_str,
+            faddr_hash
+        ]
+        fininst_addrows_list.append({k: v for k,v in zip(finst_cols,finst_vals)})
+
+ 
      #---End of for loop 
      #================================================================
 
