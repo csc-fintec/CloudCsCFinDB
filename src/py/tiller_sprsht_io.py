@@ -157,61 +157,91 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
   finaddr_table = SQA.Table("financial_addresses",   SQA.MetaData(),autoload_with=sqa_engine)
 
   vendors_columns = vendors_table.columns.keys()
-  venaddr_columns = venaddr_table.columns.keys()
-  fininst_columns = fininst_table.columns.keys()
+  #venaddr_columns = venaddr_table.columns.keys()
+  #fininst_columns = fininst_table.columns.keys()
   #finaddr_columns = finaddr_table.columns.keys()
 
-  """
-  emptyaddr_hash  =  zlib.crc32(
-                   ("NO location_name"  +
-                    "NO address"        +
-                    "NO city"           +
-                    "NO state"          +
-                    "NO zipcode"        +
-                    "NO country"        +
-                    "NO phoneno").encode("utf-8"))
-  """      
+  #-------------------------------------------------------------------------------
+  #Sub function to add an empty address place holder to the addresses table...
+  #-------------------------------------------------------------------------------
+  def add_emptyaddr_to(db_table):
+    print(f"\n!!!!----------------------------------------------------------------")
+    print(f"!!! Inserting empty address into into the database\n")
+    empaddr_insert = SQA.insert(db_table)
+    with sqa_engine.begin() as sqa_conn:
+         sqa_conn.execute(empaddr_insert, DB_EMPTYADDR_LIST) 
+    print(f"!!! -------------------------------------------------------------------\n")
+  #-------------------------------------------------------------------------------
   #print(f"Vendors columns: {vendors_columns}")
   #print(f"Vendor Addresses columns: {venaddr_columns}")
 
   #Get all the rows from the database...
   with sqa_engine.connect() as sqa_conn:
     sqa_vendors_result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
+    sqa_venaddr_result = sqa_conn.execute(SQA.select(venaddr_table)).fetchall()
     sqa_fininst_result = sqa_conn.execute(SQA.select(fininst_table)).fetchall()
     sqa_finaddr_result = sqa_conn.execute(SQA.select(finaddr_table)).fetchall()
      
-  #Build a set of already existing vendors
+  #Build the set of already existing items read from database...
   existing_vendors = set()
+  existing_venaddr = set()
   existing_fininst = set()
   existing_finaddr = set()
 
   #Load up an existing set with existing ids from the database
   if(len(sqa_vendors_result) > 0):
     existing_vendors.update([sqa_row[0] for sqa_row in sqa_vendors_result])
+    print(f"---Begin with existing Vendors: {len(existing_vendors)}")
+
+  if(len(sqa_venaddr_result) > 0):
+    existing_venaddr.update([sqa_row[0] for sqa_row in sqa_venaddr_result])
+    print(f"---Begin with existing Venaddr: {len(existing_venaddr)}")
+  else:
+    add_emptyaddr_to(venaddr_table)
 
   if(len(sqa_fininst_result) > 0):
     existing_fininst.update([sqa_row[0] for sqa_row in sqa_fininst_result])
+    print(f"---Begin with existing Fininst: {len(existing_fininst)}")
+
+  if(len(sqa_finaddr_result) > 0):
+    existing_finaddr.update([sqa_row[0] for sqa_row in sqa_finaddr_result])
+    print(f"---Begin with existing Finaddr: {len(existing_finaddr)}")
+  else:
+    add_emptyaddr_to(finaddr_table)
 
 
-  print(f"---Begin with existing Vendors: {len(existing_vendors)}")
-  print(f"---Begin with existing Fininst: {len(existing_fininst)}")
-  #print(f"---Begin with existing Finaddr: {len(existing_finaddr)}")
+  #-------------------------------------------------------------------------------
+  #Sub function to add to tables in database
+  #-------------------------------------------------------------------------------
+  def add_to_db(db_table,table_rows):
+    print(f"\n!!!!----------------------------------------------------------------")
+    print(f"!!! Inserting {len(table_rows)} new data into the database,table\n")
+    table_insert = SQA.insert(db_table)
+    with sqa_engine.begin() as sqa_conn:
+        sqa_conn.execute(table_insert, table_rows) 
+    print(f"!!! Inserted {len(table_rows)} new data into the database.")
+    print(f"!!! -------------------------------------------------------------------\n")
+    table_rows.clear()
 
   #-------------------------------------------------------------------------------
   #Sub function to add vendor tables in database
   #-------------------------------------------------------------------------------
   def add_vend_db():
     print(f"\n!!!!----------------------------------------------------------------")
-    print(f"!!! Inserting {len(vendors_addrows_list)} new vendors into the database\n")
+    print(f"!!! Inserting {len(vendors_addrows_list)} new vendors into the database")
+    print(f"!!! Inserting {len(venaddr_addrows_list)} new vendor addresses into the database\n")
     #print(f"---\n{vendors_many_list}\n---\n")
     #print(f"---\n{venaddr_many_list}\n---\n")
     vendors_insert = SQA.insert(vendors_table)
     venaddr_insert = SQA.insert(venaddr_table)
+    have_venaddr  = True if len(venaddr_addrows_list) > 0 else False
     with sqa_engine.begin() as sqa_conn:
-        sqa_conn.execute(venaddr_insert, venaddr_addrows_list) 
+        if have_venaddr: 
+          sqa_conn.execute(venaddr_insert, venaddr_addrows_list) 
         sqa_conn.execute(vendors_insert, vendors_addrows_list)
-    print(f"!!! Inserted {len(venaddr_addrows_list)} new vendors into the database.")
-    print(f"!!! -------------------------------------------------------------------\n")
+    print(f"!!! Inserted {len(vendors_addrows_list)} new vendors into the database.")
+    print(f"!!! Inserted {len(venaddr_addrows_list)} new vendor addresses into the database\n")
+    #print(f"!!! -------------------------------------------------------------------\n")
     vendors_addrows_list.clear()
     venaddr_addrows_list.clear()
   #-------------------------------------------------------------------------------
@@ -221,6 +251,7 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
   #-------------------------------------------------------------------------------
   def add_fina_db():
     print(f"\n!!!!----------------------------------------------------------------")
+    print(f"!!! Inserting {len(fininst_addrows_list)} new financial business  into the database.")
     print(f"!!! Inserting {len(finaddr_addrows_list)} new financial addresses into the database.")
     have_finaddr  = True if len(finaddr_addrows_list) > 0 else False
     fininst_insert = SQA.insert(fininst_table)
@@ -229,31 +260,18 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
         if have_finaddr: 
           sqa_conn.execute(finaddr_insert, finaddr_addrows_list)
         sqa_conn.execute(fininst_insert, fininst_addrows_list) 
+    print(f"!!! Inserted {len(fininst_addrows_list)} new financial business  into the database.")
+    print(f"!!! Inserted {len(finaddr_addrows_list)} new financial addresses into the database.")
     print(f"!!!!----------------------------------------------------------------\n")
     fininst_addrows_list.clear()
     finaddr_addrows_list.clear()
   #----------------------------------------------------------------------------------
 
-  #-------------------------------------------------------------------------------
-  #Sub function to add an empty address place holder to the addresses table...
-  #-------------------------------------------------------------------------------
-  def add_emptyaddr_to_db():
-    print(f"\n!!!!----------------------------------------------------------------")
-    print(f"!!! Inserting empty address into into the database\n")
-    empaddr_insert = SQA.insert(finaddr_table)
-    with sqa_engine.begin() as sqa_conn:
-         sqa_conn.execute(empaddr_insert, DB_EMPTYADDR_LIST) 
-    print(f"!!! -------------------------------------------------------------------\n")
-  #-------------------------------------------------------------------------------
-
-  if(len(sqa_finaddr_result) > 0):
-    existing_finaddr.update([sqa_row[0] for sqa_row in sqa_finaddr_result])
-    print(f"---Begin with existing Finaddr: {len(existing_finaddr)}")
-  else:
-    add_emptyaddr_to_db()
   
   try:
-     #Load the data from the spreadsheet here.
+     #-------------------------------------------------------------------------------
+     #      Load the data from the spreadsheet here.
+     #-------------------------------------------------------------------------------
      spsht_data_range = (
         gg.GOOG_SPREADSHEETS.values()
           .get(spreadsheetId=spreadsheet_id, range=TILLER_TRSC_RNG_DATA)
@@ -266,7 +284,6 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
 
      shrt_desc_idx = TILLER_TRSC_HDR_IDXS["Description"]
      full_desc_idx = TILLER_TRSC_HDR_IDXS["Full Description"]
-
      acntnm_idx    = TILLER_TRSC_HDR_IDXS["Account"]
      acntno_idx    = TILLER_TRSC_HDR_IDXS["Account #"]  #Not actual account number. An abriavation e.g. X1245
      instut_idx    = TILLER_TRSC_HDR_IDXS["Institution"]
@@ -279,13 +296,15 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
      vdx = 0 
      fdx = 0  
 
-     #Go through all the rows of the spreadsheet, check if they already exist, and
-     #add them to a running tally if not. Stop every 
+     #------------------------------------------------------------------
+     # Go through all the rows of the spreadsheet, check if they 
+     # already exist, and add them to a running tally if not,
+     # stop every 
+     #------------------------------------------------------------------
      for rdx,spsht_row in enumerate(spsht_data_rows):
       
       shrt_desc = spsht_row[shrt_desc_idx]
       full_desc = spsht_row[full_desc_idx]
-
       instut    = spsht_row[instut_idx]
       acntno    = spsht_row[acntno_idx]
       acntnm    = spsht_row[acntnm_idx]
@@ -293,45 +312,81 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
       vend_hash = zlib.crc32((shrt_desc + full_desc).encode("utf-8"))
       fina_hash = zlib.crc32((acntno + instut + acntnm).encode("utf-8"))
 
+      #------------------------------------------------------------------
+      #  Adding to vendors
+      #------------------------------------------------------------------
       if(vend_hash not in existing_vendors):
         existing_vendors.add(vend_hash)
         vdx = vdx + 1
-        print(f"+++ {vdx} new vendor to add.")
+        vaddr_hash = DB_EMPTYADDR_HASH
+        print(f"+++ {rdx} from spreadsheet is {vdx} new vendor.")
         print(f"    {len(shrt_desc)} : {shrt_desc}")
         print(f"    {len(full_desc)} : {full_desc}")
 
         goog_businfo = gg.goog_get_business_address(shrt_desc)
         has_businfo  = True if len(goog_businfo) > 0 else False
         print(f"Got business info of {len(goog_businfo)}")
-        vendaddr_addrow = {}
-        for col in venaddr_columns:
-          match col:
-            case "id":            vendaddr_addrow[col] = vend_hash
-            case "city":          vendaddr_addrow[col] = goog_businfo.get("city")    if has_businfo else ""
-            case "state":         vendaddr_addrow[col] = goog_businfo.get("state")   if has_businfo else ""
-            case "address":       vendaddr_addrow[col] = goog_businfo.get("street")  if has_businfo else ""
-            case "zipcode":       vendaddr_addrow[col] = goog_businfo.get("zipcode") if has_businfo else ""
-            case "country":       vendaddr_addrow[col] = goog_businfo.get("country") if has_businfo else ""
-            case "business_name": vendaddr_addrow[col] = goog_businfo.get("busname") if has_businfo else ""
-            case _:               vendaddr_addrow[col] = ""
-          
-        venaddr_addrows_list.append(vendaddr_addrow)
 
-        vendors_addrow   = {}
-        for col in vendors_columns:
-          match col:
-            case "id":            vendors_addrow[col] = vend_hash
-            case "type":          vendors_addrow[col] = "GENERAL"
-            case "addr_id":       vendors_addrow[col] = vend_hash
-            case "shrt_desc":     vendors_addrow[col] = shrt_desc
-            case "full_desc":     vendors_addrow[col] = full_desc
-            case "business_name": vendors_addrow[col] = goog_businfo.get("busname") if has_businfo else ""
-            case _:               vendors_addrow[col] = ""
- 
-        vendors_addrows_list.append(vendors_addrow)
+        if has_businfo:
+          taddr_hash = zlib.crc32(
+                      (goog_businfo.get("street")  +
+                       goog_businfo.get("city")    +
+                       goog_businfo.get("state")   +
+                       str(goog_businfo.get("zipcode")) +
+                       goog_businfo.get("country")).encode("utf-8"))
+
+          if(taddr_hash not in existing_venaddr):
+            existing_venaddr.add(taddr_hash)
+            vaddr_hash = taddr_hash
+            vendaddr_cols = [
+              "id",
+              "business_name",
+              "address",
+              "city",
+              "state",
+              "zipcode",
+              "country",
+              "phoneno"
+            ]
+            vendaddr_vals = [
+              vaddr_hash,
+              goog_businfo.get("busname"),
+              goog_businfo.get("street"),
+              goog_businfo.get("city"),
+              goog_businfo.get("state"),
+              goog_businfo.get("zipcode"),
+              goog_businfo.get("country"),
+              ""
+            ]
+            venaddr_addrows_list.append({k: v for k,v in zip(vendaddr_cols,vendaddr_vals)})
+            #add_to_db(db_table,venaddr_addrows_list)
+          #
+          else: vaddr_hash = taddr_hash
+
+        vendor_cols = [
+            "id",
+            "type",
+            "business_name",
+            "shrt_desc",
+            "full_desc",
+            "website",
+            "addr_id"
+           ]
+
+        vendor_vals = [
+            vend_hash,
+            "GENERAL",
+             goog_businfo.get("busname") if has_businfo else "",
+             shrt_desc,
+             full_desc,
+             "",
+             vaddr_hash
+           ]
+        vendors_addrows_list.append({k: v for k,v in zip(vendor_cols,vendor_vals)})
+
         bAddToDb = (0 == (len(vendors_addrows_list) % DB_ADD_TEMPO))
-        #print(f"!!!  ====== Add to database? {bAddToDb}")
         if (True == bAddToDb): add_vend_db()
+
       else:
           #print(f"=== {shrt_desc} + {full_desc}")
           print(f"=== {rdx} from spreadsheet already exists.")
@@ -339,13 +394,12 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
           print(f"    {len(full_desc)} : {full_desc}")
       
       #------------------------------------------------------------------
-      #  Adding the financials information...
+      #    Adding the financials information...
       #------------------------------------------------------------------
-
       if(fina_hash not in existing_fininst):
         existing_fininst.add(fina_hash)
-        faddr_hash = DB_EMPTYADDR_HASH
         fdx = fdx + 1
+        faddr_hash = DB_EMPTYADDR_HASH
         print(f"+++ {fdx} new financial to add.")
         print(f"    {len(instut)} : {instut}")
         print(f"    {len(acntno)} : {acntno}")
@@ -392,7 +446,6 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
           else: faddr_hash = taddr_hash
 
 
-
         date_str = datetime.now().strftime("%m-%d-%Y")
         type_str = "BANK" if ("BANKS" == spreadsheet_ky) else "CCARD"
 
@@ -425,7 +478,6 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
         ]
         fininst_addrows_list.append({k: v for k,v in zip(finst_cols,finst_vals)})
 
- 
      #---End of for loop 
      #================================================================
 
@@ -440,7 +492,6 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
 
   print(f"---finished with existing Vendors: {len(existing_vendors)}")
   print(f"---finished with existing Finance: {len(existing_fininst)}")
-
   print("Done building from the transactions spreadsheet.")
 #========================================================================
 
