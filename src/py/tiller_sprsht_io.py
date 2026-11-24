@@ -443,7 +443,7 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
             ]
             finaddr_addrows_list.append({k: v for k,v in zip(finaddr_cols,finaddr_vals)})
 
-          else: faddr_hash = taddr_hash
+          else: faddr_hash = taddr_hash #Remember to set faddr to the existing hash...
 
 
         date_str = datetime.now().strftime("%m-%d-%Y")
@@ -492,7 +492,8 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
 
   print(f"---finished with existing Vendors: {len(existing_vendors)}")
   print(f"---finished with existing Finance: {len(existing_fininst)}")
-  print("Done building from the transactions spreadsheet.")
+  print(f"-- Done building from the {spreadsheet_ky} spreadsheet.")
+  print(f"--")
 #========================================================================
 
 """
@@ -689,9 +690,12 @@ if __name__ == "__main__":
           build_db_from_sprsht(spsht_name,TILLER_SPRSH_DICT[spsht_name])
         elif (opts.all_sprshts):
           for spx,(spsht_nm,spsht_id) in enumerate(TILLER_SPRSH_DICT.items()):
-            print(f"Spreadsheet name : {spsht_nm}")
+            print(f"!!!")
+            print(f"!!! ======================================================")
+            print(f"!!! Building from spreadsheet name : {spsht_nm}")
+            print(f"!!! ======================================================")
+            print(f"!!!")
             build_db_from_sprsht(spsht_nm,spsht_id)
-            if(0 == spx): sys.exit(1)
 
     #Run a sql file name
     elif(opts.sql_fname):
