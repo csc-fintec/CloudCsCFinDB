@@ -77,7 +77,7 @@ Table financial_instruments {
     interest_rate   numeric(5,4) [null] //Only if this is a credit card
     expiration_date date         [null]  ///Only if this is a credit card 
 
-    addr_id bigint [ref: > financial_addresses.id] 
+    addr_id bigint [not null,ref: > financial_addresses.id] 
 }
 
 
@@ -105,7 +105,7 @@ Table vendors {
 
     website varchar(255)   [null]
 
-    addr_id bigint [ref: > vendor_addresses.id] //The providor of the service involved in the transaction 
+    addr_id bigint [not null,ref: > vendor_addresses.id] //The providor of the service involved in the transaction 
 }
 //---------------------------------------------------------
 
@@ -124,7 +124,7 @@ Table transactions {
     shrt_desc varchar(255)
     full_desc varchar(512)
     
-    categ_id bigint [ref: > categories.id]  //The category of the transaction
-    vendr_id bigint [ref: > vendors.id] //The providor of the service involved in the transacion
-    money_id bigint [ref: > financial_instruments.id] //The monetary instrument used
+    categ_id bigint [not null,ref: > categories.id]  //The category of the transaction
+    vendr_id bigint [not null,ref: > vendors.id] //The providor of the service involved in the transacion
+    money_id bigint [not null,ref: > financial_instruments.id] //The monetary instrument used
 }
