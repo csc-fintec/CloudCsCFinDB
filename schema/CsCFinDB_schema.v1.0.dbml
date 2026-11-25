@@ -9,6 +9,8 @@ enum TransactTypes { //The type of the transaction that was performed
   INCOME
   EXPENSE
   PENALTY
+  PAYMENT
+  INTEREST
   TRANSFER
   UNKNOWN
 }

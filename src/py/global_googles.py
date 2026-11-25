@@ -19,6 +19,7 @@ from googleapiclient.errors import HttpError
 import googlemaps
 from googlemaps import places
 
+#
 #define a quick grammer for parsing addresses...
 import pyparsing as pp
 
@@ -125,13 +126,8 @@ def goog_init():
 def goog_get_business_address(bus_query : str = "Googleplex Mountain View"):
   print(f"Getting business address of {bus_query}")
 
-  bus_name_req = {
-      "textQuery": bus_query
-  }
-
-  bus_query_res = requests.post(GOOG_MAPS_URL, 
-                               json=bus_name_req, 
-                               headers=GOOG_MAPS_HDR)
+  bus_name_req = {"textQuery": bus_query}
+  bus_query_res = requests.post(GOOG_MAPS_URL, json=bus_name_req, headers=GOOG_MAPS_HDR)
 
   print(f"Got response code {bus_query_res.status_code}")
   
@@ -147,9 +143,6 @@ def goog_get_business_address(bus_query : str = "Googleplex Mountain View"):
        print(f"Name : {bus_data}")
        print(f"Addr : {bus_addr}")
  
-       #if 255 < len(bus_name):
-       #   print(f"Business name is too long\{bus_name}")
-       #   #sys.exit(1)
        try:
         adg_parsed  = adg.parse_string(bus_addr)
         #print(adg_parsed.dump())
@@ -168,10 +161,6 @@ def goog_get_business_address(bus_query : str = "Googleplex Mountain View"):
 
       else:
          return {}
-         #for bdx,bus_place in enumerate(bus_places):
-         # bus_name  = bus_place.get("displayName")
-         # bus_addr  = bus_place.get("formattedAddress")
-         # print(f"Addr : {bus_addr}")
 
   else:
       #print(f"NOT something for bus_name {bus_name_res.text}")

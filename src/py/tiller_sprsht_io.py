@@ -25,7 +25,7 @@ from googleapiclient.errors import HttpError
 #SQLAlchemy imports
 import sqlalchemy as SQA
 from sqlalchemy import insert as sqa_insert
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text,inspect
 from sqlalchemy.engine import URL
 import urllib.parse
 
@@ -90,18 +90,6 @@ DB_EMPTYADDR_HASH  =  zlib.crc32(
                     "NO zipcode"        +
                     "NO country"        +
                     "NO phoneno").encode("utf-8"))
-"""
-DB_EMPTYADDR_ROW  = {
-              "id"            : DB_EMPTYADDR_HASH,
-              "location_name" : "NO location_name",
-              "address"       : "NO address",
-              "city"          : "NO city",
-              "state"         : "XX",
-              "zipcode"       : "XXXXX",
-              "country"       : "XXX",
-              "phoneno"       : ""
-}
-"""
 
 DB_EMPTYADDR_LIST = [{
       "id"            : DB_EMPTYADDR_HASH,
@@ -121,7 +109,7 @@ DB_ADD_TEMPO=50
 
 """
  ------------------------------------------------------------------------
-  Build the vendors list from the transactions spreadsheet
+  Build the information in db from the transactions spreadsheet
  ------------------------------------------------------------------------
 """
 def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
@@ -173,14 +161,24 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
     print(f"!!! -------------------------------------------------------------------\n")
   #-------------------------------------------------------------------------------
   #print(f"Vendors columns: {vendors_columns}")
-  #print(f"Vendor Addresses columns: {venaddr_columns}")
+  #print(f"Vendo sqa_stmt = SQA.select(db_table.c.id)
+
+  vendors_id_stmt = SQA.select(vendors_table.c.id)
+  venaddr_id_stmt = SQA.select(venaddr_table.c.id)
+  fininst_id_stmt = SQA.select(fininst_table.c.id)
+  finaddr_id_stmt = SQA.select(finaddr_table.c.id)
 
   #Get all the rows from the database...
   with sqa_engine.connect() as sqa_conn:
-    sqa_vendors_result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
-    sqa_venaddr_result = sqa_conn.execute(SQA.select(venaddr_table)).fetchall()
-    sqa_fininst_result = sqa_conn.execute(SQA.select(fininst_table)).fetchall()
-    sqa_finaddr_result = sqa_conn.execute(SQA.select(finaddr_table)).fetchall()
+    sqa_vendors_result = sqa_conn.scalars(vendors_id_stmt).all()
+    sqa_venaddr_result = sqa_conn.scalars(venaddr_id_stmt).all()
+    sqa_fininst_result = sqa_conn.scalars(fininst_id_stmt).all()
+    sqa_finaddr_result = sqa_conn.scalars(finaddr_id_stmt).all()
+
+    #sqa_vendors_result = sqa_conn.execute(SQA.select(vendors_table)).fetchall()
+    #sqa_venaddr_result = sqa_conn.execute(SQA.select(venaddr_table)).fetchall()
+    #sqa_fininst_result = sqa_conn.execute(SQA.select(fininst_table)).fetchall()
+    #sqa_finaddr_result = sqa_conn.execute(SQA.select(finaddr_table)).fetchall()
      
   #Build the set of already existing items read from database...
   existing_vendors = set()
@@ -190,21 +188,25 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
 
   #Load up an existing set with existing ids from the database
   if(len(sqa_vendors_result) > 0):
-    existing_vendors.update([sqa_row[0] for sqa_row in sqa_vendors_result])
+    existing_vendors.update(sqa_vendors_result)
+    #existing_vendors.update([sqa_row[0] for sqa_row in sqa_vendors_result])
     print(f"---Begin with existing Vendors: {len(existing_vendors)}")
 
   if(len(sqa_venaddr_result) > 0):
-    existing_venaddr.update([sqa_row[0] for sqa_row in sqa_venaddr_result])
+    existing_venaddr.update(sqa_venaddr_result)
+    #existing_venaddr.update([sqa_row[0] for sqa_row in sqa_venaddr_result])
     print(f"---Begin with existing Venaddr: {len(existing_venaddr)}")
   else:
     add_emptyaddr_to(venaddr_table)
 
   if(len(sqa_fininst_result) > 0):
-    existing_fininst.update([sqa_row[0] for sqa_row in sqa_fininst_result])
+    existing_fininst.update(sqa_fininst_result)
+    #existing_fininst.update([sqa_row[0] for sqa_row in sqa_fininst_result])
     print(f"---Begin with existing Fininst: {len(existing_fininst)}")
 
   if(len(sqa_finaddr_result) > 0):
-    existing_finaddr.update([sqa_row[0] for sqa_row in sqa_finaddr_result])
+    existing_finaddr.update(sqa_finaddr_result)
+    #existing_finaddr.update([sqa_row[0] for sqa_row in sqa_finaddr_result])
     print(f"---Begin with existing Finaddr: {len(existing_finaddr)}")
   else:
     add_emptyaddr_to(finaddr_table)
@@ -267,7 +269,6 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
     finaddr_addrows_list.clear()
   #----------------------------------------------------------------------------------
 
-  
   try:
      #-------------------------------------------------------------------------------
      #      Load the data from the spreadsheet here.
@@ -297,9 +298,9 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
      fdx = 0  
 
      #------------------------------------------------------------------
-     # Go through all the rows of the spreadsheet, check if they 
+     # Go through all the rows of the spreadsheet, check the vendors 
      # already exist, and add them to a running tally if not,
-     # stop every 
+     # stop every DB_ADD_TEMPO times to add them...
      #------------------------------------------------------------------
      for rdx,spsht_row in enumerate(spsht_data_rows):
       
@@ -359,7 +360,6 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
               ""
             ]
             venaddr_addrows_list.append({k: v for k,v in zip(vendaddr_cols,vendaddr_vals)})
-            #add_to_db(db_table,venaddr_addrows_list)
           #
           else: vaddr_hash = taddr_hash
 
@@ -371,8 +371,7 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
             "full_desc",
             "website",
             "addr_id"
-           ]
-
+        ]
         vendor_vals = [
             vend_hash,
             "GENERAL",
@@ -381,14 +380,13 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
              full_desc,
              "",
              vaddr_hash
-           ]
+        ]
         vendors_addrows_list.append({k: v for k,v in zip(vendor_cols,vendor_vals)})
 
-        bAddToDb = (0 == (len(vendors_addrows_list) % DB_ADD_TEMPO))
+        bAddToDb = True if(0 == (len(vendors_addrows_list) % DB_ADD_TEMPO)) else False
         if (True == bAddToDb): add_vend_db()
 
       else:
-          #print(f"=== {shrt_desc} + {full_desc}")
           print(f"=== {rdx} from spreadsheet already exists.")
           print(f"    {len(shrt_desc)} : {shrt_desc}")
           print(f"    {len(full_desc)} : {full_desc}")
@@ -421,7 +419,7 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
           if(taddr_hash not in existing_finaddr):
             existing_finaddr.add(taddr_hash)
             faddr_hash = taddr_hash
-            finaddr_cols   = [
+            finaddr_cols = [
               "id",
               "location_name",
               "address",
@@ -462,7 +460,6 @@ def build_db_from_sprsht(spreadsheet_ky : str = "CITIBANK",
             "expiration_date", #fininst_addrow[col] = date_str 
             "addr_id"          #fininst_addrow[col] = faddr_hash
         ]
-
         finst_vals = [
             fina_hash,
             type_str,
@@ -519,18 +516,88 @@ def query_table_contents(table_name = "vendors"):
   sqa_engine = create_engine(SQA_URL)
   print(f"  Created database engine.\n")
 
+  #Check for existence of the given tablename in database.
+  sqa_inspect = inspect(sqa_engine)
+  db_tables   = sqa_inspect.get_table_names()
+
+  if(table_name not in db_tables):
+    print(f"ERROR: Given table name \"{table_name}\" does not exist in database tables {db_tables}")
+    return False
+  
+  #print(f"table names\n {db_tables}")
+  #if(1):sys.exit(0)
+
+
   db_table = SQA.Table(table_name, SQA.MetaData(),autoload_with=sqa_engine)
   db_table_hdrs = db_table.columns.keys()
 
-  print(f"{table_name} columns:\n{db_table_hdrs}")
 
   with sqa_engine.connect() as sqa_conn:
     #Query the vendors table
     print(f"Querying the {table_name} table...")
     sqa_result = sqa_conn.execute(SQA.select(db_table)).fetchall()
     print(f"Queried {len(sqa_result)} rows from the {table_name} table.")
+    print(f"{table_name} columns:\n{db_table_hdrs}")
+    print(f"------------------------------------------------------------")
     for sqa_row in sqa_result:
       print(sqa_row)
+#======================================================================
+
+"""
+ ------------------------------------------------------------------------
+  Test a database table's contents.
+ ------------------------------------------------------------------------
+"""
+def test_table_contents(table_name = "vendors"):
+  """ Query a table from the database contents
+
+    Args:
+       table_name: The name of the table to query
+
+    Returns:
+        True if success False if failure
+
+    Raises:
+        Nothing
+  """
+  print(f"Begin test {table_name} table...")
+
+  print(f"  Creating database engine {SQA_URL}...")
+  sqa_engine = create_engine(SQA_URL)
+  print(f"  Created database engine.\n")
+
+  #Check for existence of the given tablename in database.
+  sqa_inspect = inspect(sqa_engine)
+  db_tables   = sqa_inspect.get_table_names()
+
+  if(table_name not in db_tables):
+    print(f"ERROR: Given table name \"{table_name}\" does not exist in database tables {db_tables}")
+    return False
+  
+  db_table = SQA.Table(table_name, SQA.MetaData(),autoload_with=sqa_engine)
+
+  #db_table_hdrs = db_table.columns.keys()
+
+  sqa_stmt = SQA.select(db_table.c.id)
+  with sqa_engine.connect() as sqa_conn:
+    print(f"Querying the {table_name} table...")
+    sqa_result = sqa_conn.scalars(sqa_stmt).all()
+    print(f"Queried {len(sqa_result)} rows from the {table_name} table.")
+    print(sqa_result)
+    #print(f"{table_name} columns:\n{db_table_hdrs}")
+
+  return True
+  """_summary_
+  with sqa_engine.connect() as sqa_conn:
+    #Query the vendors table
+    print(f"Querying the {table_name} table...")
+    sqa_result = sqa_conn.execute(SQA.select(db_table)).fetchall()
+    print(f"Queried {len(sqa_result)} rows from the {table_name} table.")
+    print(f"{table_name} columns:\n{db_table_hdrs}")
+    print(f"------------------------------------------------------------")
+    for sqa_row in sqa_result:
+      print(sqa_row)
+  """
 #======================================================================
 
 
@@ -623,6 +690,11 @@ def create_cmdline_parser():
                  action="store",
                  help="Query a database table contents."
                 )
+    p.add_option("-t","--test_table",
+                 dest="tst_table",
+                 action="store",
+                 help="Test a database table contents."
+                )
     p.add_option("-b","--build_vendors",
                  dest="bld_vendors",
                  action="store_true",
@@ -640,12 +712,12 @@ def create_cmdline_parser():
 """
 if __name__ == "__main__":
 
-    #cmdline  = create_cmdline_parser()
     opts,args = create_cmdline_parser().parse_args()
 
     if (0     == len(args))        and \
        (None  == opts.sql_fname)   and \
        (None  == opts.qry_tname)   and \
+       (None  == opts.tst_table)   and \
        (False == opts.all_sprshts) and \
        (False == opts.bld_vendors): 
        print("Error must specify action. Type -h for usage")
@@ -653,9 +725,10 @@ if __name__ == "__main__":
 
     spsht_name = ""
     
-    r_or_q  = True if ((None  != opts.sql_fname)  or
-                       (None  != opts.qry_tname)) else False
-    if(not r_or_q):
+    r_q_t  = True if ((None  != opts.sql_fname) or
+                      (None  != opts.qry_tname) or
+                      (None  != opts.tst_table)) else False
+    if(not r_q_t):
       if (len(args) < 1) and not opts.all_sprshts:
        print("Error: Must specify spreadsheet name or use -all_spreadsheets option. Type -h for usage")
        sys.exit(1)
@@ -671,10 +744,8 @@ if __name__ == "__main__":
          print(f"Spreadsheet name : {spsht_name}")
 
     if((0     != len(args))         or  \
-       (True  == opts.all_sprshts))  and \
-      ((None  != opts.sql_fname)    or
-       (None  != opts.qry_tname)):
-        print(f"Error: Do not specify spreadsheet name or -a option with -r or -q option. Type -h for usage")
+       (True  == opts.all_sprshts)) and r_q_t:
+        print(f"Error: Do not specify spreadsheet name or -a option with -r or -q or -t option. Type -h for usage")
         sys.exit(1)
 
     #Initialize the Google information
@@ -683,6 +754,14 @@ if __name__ == "__main__":
     #Query Table
     if(opts.qry_tname):
       query_table_contents(opts.qry_tname)
+
+    #Test table
+    elif(opts.tst_table):
+      test_table_contents(opts.tst_table)
+
+    #Run a sql file name
+    elif(opts.sql_fname):
+      execute_sql_script(opts.sql_fname)
 
     #Build vendor tables
     elif(opts.bld_vendors):
@@ -697,8 +776,5 @@ if __name__ == "__main__":
             print(f"!!!")
             build_db_from_sprsht(spsht_nm,spsht_id)
 
-    #Run a sql file name
-    elif(opts.sql_fname):
-        execute_sql_script(opts.sql_fname)
     else:
         print("Unsupported option")
